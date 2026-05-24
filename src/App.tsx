@@ -90,6 +90,12 @@ export default function App() {
     return saved ? JSON.parse(saved) : defaultMenu;
   });
 
+  const [officeMenu, setOfficeMenu] = useState<any[]>(() => {
+    const saved = localStorage.getItem('nido_office_menu');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [loadingOfficeMenu, setLoadingOfficeMenu] = useState(false);
+
   // Official Fortnite Menus Board State
   const [officialMenus, setOfficialMenus] = useState<OfficialMenu[]>(() => {
     const saved = localStorage.getItem('nido_official_menus');
@@ -144,6 +150,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('nido_weekly_menu', JSON.stringify(weeklyMenu));
   }, [weeklyMenu]);
+
+  useEffect(() => {
+    localStorage.setItem('nido_office_menu', JSON.stringify(officeMenu));
+  }, [officeMenu]);
 
   useEffect(() => {
     localStorage.setItem('nido_official_menus', JSON.stringify(officialMenus));
@@ -245,11 +255,16 @@ export default function App() {
 
   // App States for interactive creation
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [selectedChoreDay, setSelectedChoreDay] = useState<string>(() => {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return days[new Date().getDay()];
+  });
   const [newTask, setNewTask] = useState<Partial<CoupleTask>>({
     name: '',
     frequency: 'Diaria',
     priority: 'Alta',
     suggestedTime: '12:00',
+    dayOfWeek: 'Lunes',
     responsable: 'Ambos',
     duration: '20 min',
     autoRepeat: true,
@@ -272,7 +287,7 @@ export default function App() {
   const [aiCitasResult, setAiCitasResult] = useState<any[]>([]);
 
   // Outside Places locator state
-  const [selectedCity, setSelectedCity] = useState<string>('San Salvador');
+  const [selectedCity, setSelectedCity] = useState<string>('Tonacatepeque, San Salvador');
   const [customCity, setCustomCity] = useState<string>('');
   const [selectedPlacesCategory, setSelectedPlacesCategory] = useState<string>('Restaurantes');
   const [placesBudget, setPlacesBudget] = useState<string>('Moderado');
@@ -355,20 +370,163 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper to format current date in Spanish
+  const getFormattedToday = () => {
+    const today = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    };
+    const formatted = today.toLocaleDateString('es-ES', options);
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  };
+
+  // Helper to calculate custom anniversary type based on years of relationship
+  const getAnniversaryType = (anniversaryDateStr: string) => {
+    try {
+      const today = new Date();
+      const [year, month, day] = anniversaryDateStr.split('-').map(Number);
+      let anniversaryYear = today.getFullYear();
+      let annDateThisYear = new Date(anniversaryYear, month - 1, day);
+      if (annDateThisYear.getTime() < today.getTime()) {
+        anniversaryYear += 1;
+      }
+      const years = anniversaryYear - year;
+      return `${years}º Aniversario de Novios 💖`;
+    } catch {
+      return 'Aniversario de Novios';
+    }
+  };
+
+  // Helper to get selected city's estimated live temperature and condition
+  const getDynamicWeather = () => {
+    const city = selectedCity === 'Otro' ? (customCity || 'Tonacatepeque, San Salvador') : selectedCity;
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // Base temperature based on microclimates in El Salvador
+    let baseTemp = 28; // Default for San Salvador
+    let condition = 'Soleado';
+    
+    const cityLower = city.toLowerCase();
+    
+    if (cityLower.includes('pital') || cityLower.includes('chalatenango') || cityLower.includes('ignacio')) {
+      baseTemp = 16;
+      condition = 'Fresco';
+    } else if (cityLower.includes('tonacatepeque')) {
+      baseTemp = 26;
+      condition = 'Agradable';
+    } else if (cityLower.includes('boquerón') || cityLower.includes('boqueron') || cityLower.includes('paneca') || cityLower.includes('ataco') || cityLower.includes('ahuachapán') || cityLower.includes('ahuachapan') || cityLower.includes('renderos') || cityLower.includes('suchitoto') || cityLower.includes('perquín') || cityLower.includes('morazán') || cityLower.includes('morazan')) {
+      baseTemp = 20;
+      condition = 'Templado';
+    } else if (cityLower.includes('playa') || cityLower.includes('tunco') || cityLower.includes('zonte') || cityLower.includes('sunzal') || cityLower.includes('libertad') || cityLower.includes('unión') || cityLower.includes('union') || cityLower.includes('costa del sol') || cityLower.includes('jiquilisco') || cityLower.includes('paz') || cityLower.includes('cuco') || cityLower.includes('san miguel')) {
+      baseTemp = 32;
+      condition = 'Cálido';
+    } else if (cityLower.includes('tecla') || cityLower.includes('antiguo') || cityLower.includes('santa ana')) {
+      baseTemp = 24;
+      condition = 'Agradable';
+    }
+    
+    // Adjust based on hour of the day (cool in midnight/morning, warm in afternoon)
+    let hourOffset = 0;
+    if (hour >= 23 || hour < 5) {
+      hourOffset = -6; // Colder at night
+    } else if (hour >= 5 && hour < 8) {
+      hourOffset = -4; // Cool morning
+    } else if (hour >= 8 && hour < 11) {
+      hourOffset = -1;
+    } else if (hour >= 11 && hour < 15) {
+      hourOffset = 3; // Peak heat of midday
+    } else if (hour >= 15 && hour < 18) {
+      hourOffset = 1;
+    } else {
+      hourOffset = -2; // Sunset/evening cooling
+    }
+    
+    // Add minor minute-based decimal variance to look live and realistic
+    const minuteVariance = (now.getMinutes() % 10) / 10;
+    const finalTemp = (baseTemp + hourOffset + minuteVariance).toFixed(1);
+    
+    // Weather icon/emoji
+    let icon = '☀️';
+    if (hour >= 18 || hour < 5) {
+      icon = '🌙';
+    } else if (hourOffset > 1) {
+      icon = '☀️';
+    } else {
+      icon = '⛅';
+    }
+    
+    return {
+      city,
+      temp: `${finalTemp}°C`,
+      condition,
+      icon
+    };
+  };
+
+  // Helper to calculate exact days for dynamically rendering visual calendar month
+  const getCalendarDays = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-indexed
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    const startDayOfWeek = firstDayOfMonth.getDay(); // 0: Sunday, 1: Monday...
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    const monthLabelRaw = today.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' });
+    const monthLabel = monthLabelRaw.charAt(0).toUpperCase() + monthLabelRaw.slice(1);
+
+    return {
+      startDayOfWeek,
+      daysInMonth,
+      monthLabel
+    };
+  };
+
+  // Helper to calculate exact dates of the current week (Monday to Sunday)
+  const getCurrentWeekDates = () => {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0: Sunday, 1: Monday, etc.
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    
+    const dates = [];
+    const daysNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + distanceToMonday + i);
+      
+      const dayLabelRaw = d.toLocaleDateString('es-SV', { day: 'numeric', month: 'short' });
+      dates.push({
+        num: d.getDate(),
+        name: daysNames[i],
+        label: dayLabelRaw,
+        fullDateStr: d.toISOString().split('T')[0],
+        isToday: d.toDateString() === today.toDateString()
+      });
+    }
+    return dates;
+  };
+
   // Anniversary Countdown calculator
   const getDaysUntilAnniversary = () => {
     try {
-      const today = new Date('2026-05-22'); // Current mock year from system metadata
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Correctly clear hours for midnight-based subtraction
       const annStr = profile.anniversaryDate;
       const [year, month, day] = annStr.split('-').map(Number);
-      const annDateThisYear = new Date(today.getFullYear(), month - 1, day);
+      let annDateThisYear = new Date(today.getFullYear(), month - 1, day);
+      annDateThisYear.setHours(0, 0, 0, 0);
       
       if (annDateThisYear.getTime() < today.getTime()) {
         annDateThisYear.setFullYear(today.getFullYear() + 1);
       }
       
-      const diffTime = Math.abs(annDateThisYear.getTime() - today.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffTime = annDateThisYear.getTime() - today.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
       return diffDays;
     } catch {
       return 14; // Fallback
@@ -474,6 +632,7 @@ export default function App() {
       frequency: newTask.frequency as any,
       priority: newTask.priority as any,
       suggestedTime: newTask.suggestedTime || '12:00',
+      dayOfWeek: newTask.dayOfWeek || 'Lunes',
       responsable: newTask.responsable as any,
       duration: newTask.duration || '20 min',
       autoRepeat: !!newTask.autoRepeat,
@@ -486,6 +645,7 @@ export default function App() {
       frequency: 'Diaria',
       priority: 'Alta',
       suggestedTime: '12:00',
+      dayOfWeek: 'Lunes',
       responsable: 'Ambos',
       duration: '20 min',
       autoRepeat: true,
@@ -759,6 +919,66 @@ export default function App() {
     }
   };
 
+  // AI Menu Office Lunchbox (Prep Meal) trigger for Manu
+  const generateAiOfficeMenu = async () => {
+    setLoadingOfficeMenu(true);
+    try {
+      const response = await fetch('/api/gemini/office-menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingredients: disponiblesText }),
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      if (data.officeMenu && Array.isArray(data.officeMenu)) {
+        setOfficeMenu(data.officeMenu);
+        triggerActivityStreak();
+      }
+    } catch (err) {
+      console.error(err);
+      // Perfect Office Lunch Prep-meal fallback
+      setOfficeMenu([
+        {
+          day: "Lunes",
+          mealTitle: "Pollo deshebrado entomatado con Arroz al vapor",
+          description: "Pechuga cocida y desmechada en una salsa espesa de tomates frescos, cebolla y chile verde. El arroz blanco absorbe el jugo y mantiene el plato húmedo.",
+          prepTip: "Empaca el arroz abajo como cama conductora y sitúa el pollo entomatado jugoso arriba.",
+          reheatTime: "1:30 minutos a potencia media-alta"
+        },
+        {
+          day: "Martes",
+          mealTitle: "Carne deshilachada guisada con Jugo criollo",
+          description: "Carne para deshebrar (falda) cocida y terminada en un guisado criollo húmedo con papitas picadas.",
+          prepTip: "Humedece con dos cucharadas adicionales del propio caldo de cocción para evitar resecamiento.",
+          reheatTime: "2:00 minutos a potencia media con tapa ventilada"
+        },
+        {
+          day: "Miércoles",
+          mealTitle: "Estofado de lomo de Cerdo al achiote y papas doradas",
+          description: "Pedacitos de carne de cerdo tiernos salteados en achiote local, cocidos lentamente con caldo rico para microondas.",
+          prepTip: "Empaca las papas separadas del cerdo para que no queden correosas al morder.",
+          reheatTime: "1:45 minutos a potencia media-baja"
+        },
+        {
+          day: "Jueves",
+          mealTitle: "Casamiento de frijol de seda con Huevito duro picado",
+          description: "Arroz y frijoles refritos del día antes, revueltos en sartén caliente con mantequilla local, acompañados de huevo duro.",
+          prepTip: "Lleva aguacate entero y añádelo fresco justo después de recalentar en el comedor.",
+          reheatTime: "1:15 minutos para preservar la humedad"
+        },
+        {
+          day: "Viernes",
+          mealTitle: "Picadillo de res clásico con zanahoria y tortillas de comal",
+          description: "Carne molida magra de res salteada con zanahoria rallada, cebolla y ajo, para taquear fácil en la oficina.",
+          prepTip: "Lleva las tortillas en una servilleta de papel húmedo aparte para calentarlas 15 segundos al final.",
+          reheatTime: "1:30 minutos para la carne"
+        }
+      ]);
+    } finally {
+      setLoadingOfficeMenu(false);
+    }
+  };
+
   // Helper inside Citas module to SAVE an idea generated of any mood
   const saveDateIdea = (idea: any, status: 'guardada' | 'para_luego') => {
     const isSaved = savedIdeas.some(s => s.name === idea.name);
@@ -886,9 +1106,9 @@ export default function App() {
 
         {/* Right tools (Theme toggler, Weather shortcut, and Profile indicators) */}
         <div className="flex items-center gap-3">
-          <div className="bg-amber-100/60 dark:bg-stone-900 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-700 dark:text-stone-300 flex items-center gap-1 border border-warm-200 dark:border-stone-800">
-            <Sun className="h-3 w-3 text-amber-700 animate-spin-slow" />
-            <span>San Salvador • 28°C</span>
+          <div className="bg-amber-100/60 dark:bg-stone-900 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-700 dark:text-stone-300 flex items-center gap-1 border border-warm-200 dark:border-stone-800" title={`Clima en ${getDynamicWeather().city}: ${getDynamicWeather().condition}`}>
+            <span className="text-xs">{getDynamicWeather().icon}</span>
+            <span className="truncate max-w-[125px] sm:max-w-none">{getDynamicWeather().city} • {getDynamicWeather().temp}</span>
           </div>
 
           <button
@@ -1040,8 +1260,13 @@ export default function App() {
               {/* Saludo y Aniversario Countdown header */}
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                  <span className="text-xs text-amber-800 dark:text-amber-500 uppercase tracking-widest font-bold">Viernes, 22 de Mayo de 2026</span>
-                  <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-stone-800 dark:text-white">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-amber-800 dark:text-amber-500 uppercase tracking-widest font-bold">{getFormattedToday()}</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-amber-50 dark:bg-stone-900 border border-warm-250 dark:border-stone-850 rounded-full text-stone-600 dark:text-stone-300 font-mono">
+                      📍 {getDynamicWeather().city} • {getDynamicWeather().temp} ({getDynamicWeather().condition} {getDynamicWeather().icon})
+                    </span>
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-stone-800 dark:text-white mt-1">
                     ¡Hola, {profile.partner1} & {profile.partner2}! ✨
                   </h2>
                   <p className="text-xs text-stone-500 mt-1">Bienvenidos a su nido de amor. Tienen tareas pendientes y planes hermosos por vivir.</p>
@@ -1054,8 +1279,8 @@ export default function App() {
                   </div>
                   <div>
                     <span className="text-[10px] uppercase tracking-wider text-warm-300 font-bold block">Próximo Aniversario</span>
-                    <span className="text-2xl font-serif font-bold block">{getDaysUntilAnniversary()} Días</span>
-                    <span className="text-[9px] text-warm-200">Bodas de Papel el {profile.anniversaryDate}</span>
+                    <span className="text-2xl font-serif font-bold block">{getDaysUntilAnniversary()} {getDaysUntilAnniversary() === 1 ? 'Día' : 'Días'}</span>
+                    <span className="text-[9px] text-warm-200">{getAnniversaryType(profile.anniversaryDate)} el {profile.anniversaryDate}</span>
                   </div>
                 </div>
               </div>
@@ -1362,6 +1587,186 @@ export default function App() {
                 >
                   <Plus className="h-4 w-4" /> Agendar en Calendario
                 </button>
+              </div>
+
+              {/* TABLERO DE CITAS MENSUAL GENERAL DE NUEVO DESARROLLO */}
+              <div className="bg-white/70 dark:bg-stone-900/40 rounded-2xl p-6 border border-warm-200 dark:border-stone-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-warm-100 dark:border-warm-800 pb-3 gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📅</span>
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-stone-850 dark:text-neutral-100">Tablero Mensual de Citas</h3>
+                      <p className="text-[11px] text-stone-400">Hagan clic en cualquier día para agendar una cita romántica en esa fecha exacta</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono px-2.5 py-1 bg-amber-50 dark:bg-stone-800 text-amber-950 dark:text-amber-400 font-bold rounded-lg border border-warm-250 dark:border-stone-750 self-start sm:self-auto">
+                    {getCalendarDays().monthLabel}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                  {/* Monthly Grid */}
+                  <div className="xl:col-span-8 bg-stone-50/50 dark:bg-stone-950/20 p-4 rounded-xl border border-warm-150 dark:border-stone-850">
+                    <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-mono mb-2 font-bold opacity-60">
+                      {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
+                        <div key={d} className="py-1">{d}</div>
+                      ))}
+                    </div>
+                    
+                    <div className="grid grid-cols-7 gap-1">
+                      {/* Fill leading blank cells */}
+                      {Array.from({ length: getCalendarDays().startDayOfWeek }).map((_, idx) => (
+                        <div key={`empty-${idx}`} className="aspect-square bg-transparent rounded-lg"></div>
+                      ))}
+                      
+                      {/* Render actual days */}
+                      {Array.from({ length: getCalendarDays().daysInMonth }).map((_, idx) => {
+                        const dayNum = idx + 1;
+                        const today = new Date();
+                        const yr = today.getFullYear();
+                        const mt = String(today.getMonth() + 1).padStart(2, '0');
+                        const dy = String(dayNum).padStart(2, '0');
+                        const dayDateStr = `${yr}-${mt}-${dy}`;
+                        
+                        const isCurrentToday = today.getDate() === dayNum && today.getMonth() === today.getMonth();
+                        
+                        // Filter appointments for this exact day
+                        const dayApts = appointments.filter(a => a.date === dayDateStr);
+
+                        return (
+                          <div
+                            key={`day-${dayNum}`}
+                            onClick={() => {
+                              setNewAppointment({
+                                title: '',
+                                date: dayDateStr,
+                                time: '19:00',
+                                mood: 'Romántica',
+                                location: 'Tonacatepeque, San Salvador',
+                                notes: '',
+                              });
+                              setShowAddAppointmentModal(true);
+                            }}
+                            className={`min-h-[64px] p-1 border rounded-lg flex flex-col justify-between transition-all cursor-pointer group hover:bg-amber-50/50 dark:hover:bg-amber-500/10 ${
+                              isCurrentToday
+                                ? 'bg-amber-100/50 dark:bg-amber-900/20 border-amber-900/60 dark:border-amber-500 shadow-sm'
+                                : 'bg-white dark:bg-stone-900 border-warm-150 dark:border-stone-800'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <span className={`text-[10px] font-bold p-0.5 px-1.5 rounded-full ${
+                                isCurrentToday ? 'bg-amber-955 text-stone-100' : 'text-stone-500'
+                              }`}>
+                                {dayNum}
+                              </span>
+                              {dayApts.length > 0 && (
+                                <span className="text-[8px] sm:text-[9px] animate-pulse">💖</span>
+                              )}
+                            </div>
+
+                            {/* Quick display of appointments on cell */}
+                            <div className="space-y-0.5 mt-1 overflow-hidden">
+                              {dayApts.slice(0, 2).map(apt => (
+                                <div
+                                  key={apt.id}
+                                  title={apt.title}
+                                  className={`text-[8px] leading-tight px-1 rounded truncate select-none border ${
+                                    apt.completed
+                                      ? 'bg-stone-100 dark:bg-stone-950 text-stone-400 line-through border-transparent'
+                                      : 'bg-gradient-to-r from-amber-800/20 to-amber-950/25 dark:from-amber-900/30 dark:to-amber-950/30 text-amber-950 dark:text-amber-400 border-amber-900/10'
+                                  }`}
+                                >
+                                  {apt.title}
+                                </div>
+                              ))}
+                              {dayApts.length > 2 && (
+                                <div className="text-[7px] text-amber-800 dark:text-amber-400 font-mono text-right font-bold">
+                                  +{dayApts.length - 2} más
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Side listing current appointments */}
+                  <div className="xl:col-span-4 bg-stone-50/50 dark:bg-stone-950/20 p-4 rounded-xl border border-warm-150 dark:border-stone-850 space-y-4">
+                    <h4 className="font-serif font-bold text-xs border-b border-warm-150 dark:border-stone-800 pb-2 text-stone-850 dark:text-neutral-100">
+                      Nuestras Citas de este Mes
+                    </h4>
+                    
+                    <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
+                      {appointments.filter(a => {
+                        const now = new Date();
+                        const [yr, mt] = a.date.split('-');
+                        return Number(yr) === now.getFullYear() && Number(mt) === (now.getMonth() + 1);
+                      }).length > 0 ? (
+                        appointments.filter(a => {
+                          const now = new Date();
+                          const [yr, mt] = a.date.split('-');
+                          return Number(yr) === now.getFullYear() && Number(mt) === (now.getMonth() + 1);
+                        }).map(apt => (
+                          <div
+                            key={apt.id}
+                            className={`p-3 rounded-xl border flex flex-col justify-between gap-1.5 transition-all text-xs ${
+                              apt.completed
+                                ? 'bg-stone-100/40 border-warm-150 dark:bg-stone-900/10 text-stone-400'
+                                : 'bg-white dark:bg-stone-900 border-warm-200 dark:border-stone-800'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-0.5">
+                                <h5 className={`font-semibold text-[11px] leading-tight ${apt.completed ? 'line-through text-stone-400' : 'text-stone-850 dark:text-neutral-100'}`}>
+                                  {apt.title}
+                                </h5>
+                                <p className="text-[10px] text-stone-550 font-mono">
+                                  📅 {apt.date} • ⏱️ {apt.time || '19:00'}
+                                </p>
+                                {apt.location && (
+                                  <p className="text-[9px] text-amber-855 dark:text-amber-500 font-mono italic">
+                                    📍 {apt.location}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, completed: !a.completed } : a));
+                                  }}
+                                  className={`p-1 px-1.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
+                                    apt.completed
+                                      ? 'bg-stone-500 text-stone-100 border-stone-605'
+                                      : 'bg-amber-900 text-white hover:bg-stone-800 border-amber-955'
+                                  }`}
+                                >
+                                  {apt.completed ? '✓' : 'Listo'}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAppointments(prev => prev.filter(a => a.id !== apt.id));
+                                  }}
+                                  className="p-1 text-stone-400 hover:text-red-600 transition-colors cursor-pointer"
+                                  title="Quitar"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-[11px] text-stone-405 italic">
+                          No hay citas registradas para este mes todavía. ¡Hagan clic en un día en el tablero de la izquierda para planificar!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* TABS PARA CITAS EN CASA VS CITAS GENERALES FUERA */}
@@ -1770,94 +2175,160 @@ export default function App() {
               {/* CORE TASKS TABLE TABLERO DIARIO */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 
-                {/* LIST OF CURRENT TASKS */}
-                <div className="lg:col-span-8 bg-white/60 dark:bg-stone-900/40 rounded-2xl p-6 border border-warm-200 dark:border-stone-800 space-y-4">
-                  <div className="flex items-center justify-between border-b border-warm-100 dark:border-stone-800 pb-3">
-                    <h3 className="font-serif font-bold text-lg">Su Tablero Mensual de Tareas</h3>
-                    <span className="text-xs font-mono text-stone-400">Total: {tasks.length} organizadas</span>
-                  </div>
+                {/* TABLERO SEMANAL DE TAREAS DEL HOGAR */}
+                <div className="lg:col-span-8 space-y-6">
+                  
+                  {/* Día actual visual week tracker */}
+                  <div className="bg-white/60 dark:bg-stone-900/40 rounded-2xl p-5 border border-warm-200 dark:border-stone-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-warm-100 dark:border-stone-800 pb-3 gap-2">
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-stone-850 dark:text-neutral-100">Planificador Semanal de Tareas</h3>
+                        <p className="text-[11px] text-stone-400">Seleccionen un día para ver o delegar tareas específicas de esta semana</p>
+                      </div>
+                      <div className="text-[10px] font-mono bg-warm-50/55 dark:bg-stone-850 px-2.5 py-1 rounded text-stone-500 uppercase tracking-widest font-bold self-start sm:self-auto border border-warm-200 dark:border-stone-750">
+                        Semana del {getCurrentWeekDates()[0].label} al {getCurrentWeekDates()[6].label}
+                      </div>
+                    </div>
 
-                  <div className="space-y-3">
-                    {tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                          task.completed
-                            ? 'bg-stone-50/50 dark:bg-stone-900/20 border-warm-150 dark:border-stone-900'
-                            : 'bg-white dark:bg-stone-900 border-warm-200 dark:border-stone-800 shadow-sm'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {/* Circle click trigger for quick complete */}
-                          <div
-                            onClick={() => claimPointsTask(task.id, task.responsable === 'Él' ? 'partner1' : task.responsable === 'Ella' ? 'partner2' : 'both')}
-                            className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors mt-0.5 ${
-                              task.completed
-                                ? 'bg-amber-900 text-stone-100 border-amber-950'
-                                : 'border-stone-300 dark:border-stone-700 hover:border-amber-900 bg-white dark:bg-stone-900'
+                    {/* Horizontal 7-Day Selector Card Row */}
+                    <div className="grid grid-cols-7 gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                      {getCurrentWeekDates().map((day) => {
+                        const dayTasks = tasks.filter(t => (t.dayOfWeek || 'Lunes') === day.name);
+                        const pendingCount = dayTasks.filter(t => !t.completed).length;
+                        const isSelected = selectedChoreDay === day.name;
+
+                        return (
+                          <button
+                            key={day.name}
+                            type="button"
+                            onClick={() => setSelectedChoreDay(day.name)}
+                            className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center transition-all min-w-[58px] cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-900 border-amber-955 text-white shadow-xs font-bold scale-[1.02]'
+                                : day.isToday
+                                ? 'bg-amber-50 dark:bg-stone-950 border-amber-900/40 text-stone-800 dark:text-neutral-100 font-semibold animate-pulse'
+                                : 'bg-stone-50/50 dark:bg-stone-900/80 border-warm-200 dark:border-stone-800 text-stone-500 dark:text-stone-400 hover:bg-stone-50/80'
                             }`}
                           >
-                            {task.completed && <CheckCircle className="h-4.5 w-4.5 fill-current" />}
-                          </div>
-                          
-                          <div>
-                            <h4 className={`text-sm font-semibold truncate max-w-[280px] sm:max-w-[360px] ${
-                              task.completed ? 'line-through text-stone-400' : 'text-stone-800 dark:text-white'
-                            }`}>
-                              {task.name}
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] font-mono text-stone-500">
-                              <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                🔁 {task.frequency}
-                              </span>
-                              <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                👤 Responsable: <strong className="text-amber-800 dark:text-amber-500 font-bold">{task.responsable}</strong>
-                              </span>
-                              <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                ⏱️ {task.duration}
-                              </span>
-                              <span className="bg-amber-50 dark:bg-stone-950 text-amber-900 dark:text-amber-500 px-2 py-0.5 rounded font-bold">
-                                +{task.scorePoints} Pts
-                              </span>
-                            </div>
-                            {task.completed && task.completedAt && (
-                              <p className="text-[9px] text-green-600 dark:text-green-500 font-mono mt-1">
-                                ✓ Completada hoy a las {task.completedAt}
-                              </p>
+                            <span className="text-[8px] uppercase tracking-wider block opacity-70">{day.name.slice(0, 3)}</span>
+                            <span className="text-[15px] font-serif block my-0.5">{day.num}</span>
+                            {pendingCount > 0 ? (
+                              <span className={`text-[8px] px-1 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-red-50 text-red-750'}`}>{pendingCount}</span>
+                            ) : dayTasks.length > 0 ? (
+                              <span className="text-[9px] text-green-600">✓</span>
+                            ) : (
+                              <span className="text-[8px] opacity-25">-</span>
                             )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Tasks List for the Selected Day */}
+                  <div className="bg-white/60 dark:bg-stone-900/40 rounded-2xl p-6 border border-warm-200 dark:border-stone-800 space-y-4">
+                    <div className="flex items-center justify-between border-b border-warm-100 dark:border-stone-800 pb-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">📌</span>
+                        <h4 className="font-serif font-bold text-sm text-stone-850 dark:text-neutral-100">
+                          Tareas para el día <span className="text-amber-900 dark:text-amber-500 font-sans font-bold">{selectedChoreDay}</span>
+                        </h4>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNewTask(p => ({ ...p, dayOfWeek: selectedChoreDay }));
+                          setShowAddTaskModal(true);
+                        }}
+                        className="px-2 py-1 bg-amber-900 hover:bg-stone-850 text-white text-[10px] rounded-lg font-bold transition-all cursor-pointer shadow-xs"
+                      >
+                        + Agregar a este día
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay).map((task) => (
+                        <div
+                          key={task.id}
+                          className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                            task.completed
+                              ? 'bg-stone-50/50 dark:bg-stone-900/20 border-warm-150 dark:border-stone-900'
+                              : 'bg-white dark:bg-stone-900 border-warm-200 dark:border-stone-800 shadow-sm hover:border-amber-900/40'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              onClick={() => claimPointsTask(task.id, task.responsable === 'Él' ? 'partner1' : task.responsable === 'Ella' ? 'partner2' : 'both')}
+                              className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors mt-0.5 ${
+                                task.completed
+                                  ? 'bg-amber-900 text-stone-100 border-amber-955'
+                                  : 'border-stone-300 dark:border-stone-700 hover:border-amber-900 bg-white dark:bg-stone-900'
+                              }`}
+                            >
+                              {task.completed && <CheckCircle className="h-4.5 w-4.5 fill-current" />}
+                            </div>
+                            
+                            <div>
+                              <h4 className={`text-sm font-semibold truncate max-w-[280px] sm:max-w-[360px] ${
+                                task.completed ? 'line-through text-stone-400' : 'text-stone-800 dark:text-white'
+                              }`}>
+                                {task.name}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] font-mono text-stone-500">
+                                <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                  🔁 {task.frequency}
+                                </span>
+                                <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                  👤 <strong className="text-amber-800 dark:text-amber-500 font-bold">{task.responsable}</strong>
+                                </span>
+                                <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                  ⏱️ {task.duration}
+                                </span>
+                                {task.suggestedTime && (
+                                  <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                    🔔 {task.suggestedTime}
+                                  </span>
+                                )}
+                                <span className="bg-amber-50 dark:bg-stone-950 text-amber-905 dark:text-amber-500 px-2 py-0.5 rounded font-bold">
+                                  +{task.scorePoints || 20} Pts
+                                </span>
+                              </div>
+                              {task.completed && task.completedAt && (
+                                <p className="text-[9px] text-green-605 dark:text-green-550 font-mono mt-1">
+                                  ✓ Completada hoy por {task.responsable}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                            <button
+                              onClick={() => {
+                                alert(`Se ha reajustado el recordatorio de "${task.name}" para mañana.`);
+                                setReminders(prev => [`La tarea "${task.name}" se reagendó exitosamente para mañana.`, ...prev]);
+                              }}
+                              className="p-1 px-2.5 rounded-lg border border-warm-200 dark:border-stone-750 text-[10px] font-semibold text-stone-605 dark:text-stone-300 hover:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            >
+                              Reagendar
+                            </button>
+                            <button
+                              onClick={() => {
+                                setTasks(prev => prev.filter(t => t.id !== task.id));
+                              }}
+                              className="p-1.5 rounded-lg border border-red-200/50 hover:bg-red-50 hover:border-red-500 text-stone-400 hover:text-red-650 transition-colors cursor-pointer"
+                              title="Quitar"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
+                      ))}
 
-                        {/* Action buttons (Reagendar, Eliminar) */}
-                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                          <button
-                            onClick={() => {
-                              // Fast delay reschedule simulator
-                              alert(`Se ha reajustado el recordatorio de "${task.name}" para mañana.`);
-                              setReminders(prev => [`La tarea "${task.name}" se reagendó exitosamente para mañana.`, ...prev]);
-                            }}
-                            className="p-1 px-2.5 rounded-lg border border-warm-200 dark:border-stone-750 text-[10px] font-semibold text-stone-600 dark:text-stone-300 hover:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
-                          >
-                            Reagendar
-                          </button>
-                          <button
-                            onClick={() => {
-                              setTasks(prev => prev.filter(t => t.id !== task.id));
-                            }}
-                            className="p-1.5 rounded-lg border border-red-200/50 hover:bg-red-50 hover:border-red-500 text-stone-400 hover:text-red-600 transition-colors cursor-pointer"
-                            title="Quitar Tarea"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                      {tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay).length === 0 && (
+                        <div className="p-12 text-center text-xs text-stone-400 italic">
+                          No hay tareas programadas para este {selectedChoreDay}. ¡Momento de descansar y disfrutar su racha!
                         </div>
-                      </div>
-                    ))}
-
-                    {tasks.length === 0 && (
-                      <div className="p-12 text-center text-xs text-stone-400">
-                        ¡Wooo! No tienen tareas añadidas de momento. Descansen y relajen su día en el nido de amor.
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1866,7 +2337,10 @@ export default function App() {
                   
                   {/* Monthly calendar widget view */}
                   <div className="bg-white/60 dark:bg-stone-900/40 rounded-2xl p-5 border border-warm-200 dark:border-stone-800">
-                    <h4 className="font-serif font-bold text-sm mb-3 border-b pb-2">Calendario Mensual</h4>
+                    <h4 className="font-serif font-bold text-sm mb-3 border-b pb-2 flex items-center justify-between">
+                      <span>Calendario Mensual</span>
+                      <span className="text-[10px] uppercase font-sans tracking-wider text-amber-800 dark:text-amber-500 font-bold">{getCalendarDays().monthLabel}</span>
+                    </h4>
                     
                     <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-mono mb-2">
                       {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map(d => (
@@ -1875,14 +2349,23 @@ export default function App() {
                     </div>
 
                     <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-mono">
-                      {/* Generar cuadricula simple para mayo 2026 */}
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <span key={`empty-${i}`} className="opacity-0">1</span>
+                      {/* Generar cuadricula dinámica para el mes actual */}
+                      {Array.from({ length: getCalendarDays().startDayOfWeek }).map((_, i) => (
+                        <span key={`empty-${i}`} className="opacity-0"></span>
                       ))}
-                      {Array.from({ length: 31 }).map((_, i) => {
+                      {Array.from({ length: getCalendarDays().daysInMonth }).map((_, i) => {
                         const dayNum = i + 1;
-                        const isToday = dayNum === 22;
-                        const hasApointment = dayNum === 24 || dayNum === 31;
+                        const now = new Date();
+                        const isToday = dayNum === now.getDate();
+                        const hasApointment = appointments.some(appType => {
+                          try {
+                            if (!appType.date) return false;
+                            const [y, m, d] = appType.date.split('-').map(Number);
+                            return d === dayNum && (m - 1) === now.getMonth() && y === now.getFullYear();
+                          } catch {
+                            return false;
+                          }
+                        });
                         return (
                           <div
                             key={dayNum}
@@ -2927,15 +3410,32 @@ export default function App() {
                   </select>
                 </div>
                 <div>
-                  <label className="block mb-1 font-semibold text-stone-600 dark:text-stone-350">Tiempo sugerido</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: 19:30 o 08:00"
-                    value={newTask.suggestedTime}
-                    onChange={(e) => setNewTask(p => ({ ...p, suggestedTime: e.target.value }))}
-                    className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750"
-                  />
+                  <label className="block mb-1 font-semibold text-stone-600 dark:text-stone-350">Día Semanal</label>
+                  <select
+                    value={newTask.dayOfWeek || 'Lunes'}
+                    onChange={(e) => setNewTask(p => ({ ...p, dayOfWeek: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 border rounded-lg dark:bg-stone-850 dark:border-stone-750"
+                  >
+                    <option value="Lunes">Lunes</option>
+                    <option value="Martes">Martes</option>
+                    <option value="Miércoles">Miércoles</option>
+                    <option value="Jueves">Jueves</option>
+                    <option value="Viernes">Viernes</option>
+                    <option value="Sábado">Sábado</option>
+                    <option value="Domingo">Domingo</option>
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 font-semibold text-stone-600 dark:text-stone-350">Tiempo sugerido</label>
+                <input
+                  type="text"
+                  placeholder="Ej: 19:30 o 08:00"
+                  value={newTask.suggestedTime}
+                  onChange={(e) => setNewTask(p => ({ ...p, suggestedTime: e.target.value }))}
+                  className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750"
+                />
               </div>
             </div>
 

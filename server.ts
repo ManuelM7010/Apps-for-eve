@@ -399,6 +399,76 @@ Formato de respuesta JSON estrictamente estructurado bajo este esquema:
 });
 
 // ==========================================
+// ENDPOINT: Generar Almuerzos de Oficina para Manu (Prep Meal IA)
+// ==========================================
+app.post('/api/gemini/office-menu', async (req, res) => {
+  try {
+    const { ingredients } = req.body;
+    const sampleIngredients = ingredients || 'frijoles, huevos, plátanos, crema, tomate, carne de res, cebolla, arroz, tortillas';
+
+    const ai = getAI();
+
+    const prompt = `Actúa como un chef salvadoreño experto en Prep Meal y Meal Prep para oficinas.
+El usuario Manu necesita planificar sus almuerzos para llevar a la oficina en fiambrera o tupper hermético, optimizando el uso de estos ingredientes que tiene disponibles: "${sampleIngredients}".
+Recuerda: Eve trabaja en casa (home office) y Manu va a la oficina algunos días, por lo que este menú es EXCLUSIVO para 1 comida al día (el almuerzo en fiambrera caliente).
+
+Genera un menú semanal de lunes a viernes (5 almuerzos individuales) que se recaliente súper bien en microondas de oficina (que no quede seco, que huela bien para no molestar a los compañeros, y que no se derrame).
+Usa sabores caseros típicos de El Salvador.
+
+Formato de respuesta JSON estrictamente estructurado bajo este esquema:
+{
+  "officeMenu": [
+    {
+      "day": "Lunes",
+      "mealTitle": "Nombre del almuerzo para tupper (ej: Estofado de res entomatado con arroz salvadoreño)",
+      "description": "Breve explicación de la preparación y por qué es ideal para llevar",
+      "prepTip": "Tip de empaque/transporte (ej: colocar el arroz al fondo y la salsa encima para evitar que se ablande)",
+      "reheatTime": "Tiempo recomendado en microondas de oficina (ej: 1:30 minutos a potencia media)"
+    }
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ['officeMenu'],
+          properties: {
+            officeMenu: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                required: ['day', 'mealTitle', 'description', 'prepTip', 'reheatTime'],
+                properties: {
+                  day: { type: Type.STRING },
+                  mealTitle: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  prepTip: { type: Type.STRING },
+                  reheatTime: { type: Type.STRING }
+                }
+              }
+            }
+          }
+        },
+        temperature: 0.8,
+      }
+    });
+
+    const textOutput = response.text || '{}';
+    res.json(safeJsonParse(textOutput));
+  } catch (error: any) {
+    console.error('Error al generar almuerzos de oficina:', error);
+    res.status(500).json({
+      error: error.message,
+      message: 'No se pudo generar tu menú de oficina con IA.',
+    });
+  }
+});
+
+// ==========================================
 // ENDPOINT: Comida Instantánea y Recetas Exprés
 // ==========================================
 app.post('/api/gemini/instantanea', async (req, res) => {
@@ -491,8 +561,23 @@ app.post('/api/gemini/chat', async (req, res) => {
 
     const ai = getAI();
 
+    // Get current date/time context for El Salvador
+    const now = new Date();
+    const dateOptions: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'America/El_Salvador'
+    };
+    const formattedDate = now.toLocaleDateString('es-SV', dateOptions);
+
     // Reconstruct the chat with system instruction
     const systemInstruction = `Eres "Nidi", un asistente IA de pareja súper cálido, sabio y cozy. Estás integrado en la aplicación de la encantadora pareja "Manu" y "Eve", cuyo acrónimo de unión de sus nombres es "EvÜ".
+
+INFORMACIÓN DE HOY EN TIEMPO REAL:
+- La fecha de hoy es: ${formattedDate}.
+- Ten esto en cuenta para responder preguntas sobre qué día es hoy, fechas, etc.
 
 Tu propósito principal incluye:
 1. Sugerir ideas creativas de citas basadas en diferentes estados de ánimo (Romántica, Love, Relajante, Aventura, Económica, etc.) con enfoque salvadoreño (como atarcederes mágicos en los Planes de Renderos, mirador en El Boquerón, caminatas en Paseo El Carmen, pupuseadas en Olocuilta, o picnics rústicos en la sala). El mood llamado "Love" está pensado para momentos profundos e íntimos y unifica pasiones tiernas, siendo de tono cálido, íntimo y romántico sin caer en descripciones explícitas o de lenguaje demasiado crudo.

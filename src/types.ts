@@ -14,6 +14,7 @@ export interface CoupleTask {
   completed: boolean;
   completedAt?: string;
   scorePoints: number;
+  dayOfWeek?: string; // Day of the week: "Lunes", "Martes", etc.
 }
 
 export interface DateAppointment {
