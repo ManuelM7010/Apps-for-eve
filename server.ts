@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -40,6 +41,67 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
+
+// ==========================================
+// STATE SYNCHRONIZATION (Real-time DB replacement for Eve & Manu)
+// ==========================================
+const SYNC_FILE_PATH = path.join(process.cwd(), 'nido_sync_data.json');
+let inMemorySyncData: any = null;
+
+function loadSyncData() {
+  if (inMemorySyncData) {
+    return inMemorySyncData;
+  }
+  try {
+    if (fs.existsSync(SYNC_FILE_PATH)) {
+      const content = fs.readFileSync(SYNC_FILE_PATH, 'utf-8');
+      if (content.trim()) {
+        inMemorySyncData = JSON.parse(content);
+        return inMemorySyncData;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading sync data file, falling back to memory only:', e);
+  }
+  return null;
+}
+
+function saveSyncData(data: any) {
+  inMemorySyncData = data;
+  try {
+    fs.writeFile(SYNC_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8', (err) => {
+      if (err) {
+        console.error('Error writing sync data to disk:', err);
+      }
+    });
+  } catch (e) {
+    console.error('Error saving sync data to disk:', e);
+  }
+}
+
+// Endpoint to fetch fully synchronized state
+app.get('/api/sync', (req, res) => {
+  try {
+    const data = loadSyncData();
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to save state changes
+app.post('/api/sync', (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data) {
+      return res.status(400).json({ error: 'Falta el campo "data" para sincronizar.' });
+    }
+    saveSyncData(data);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 const PORT = 3000;
 

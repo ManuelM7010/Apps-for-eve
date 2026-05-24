@@ -95,6 +95,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [loadingOfficeMenu, setLoadingOfficeMenu] = useState(false);
+  const [activeAlimentacionSubTab, setActiveAlimentacionSubTab] = useState<'general' | 'oficina'>('general');
 
   // Official Fortnite Menus Board State
   const [officialMenus, setOfficialMenus] = useState<OfficialMenu[]>(() => {
@@ -173,6 +174,147 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('nido_color_theme', colorTheme);
   }, [colorTheme]);
+
+  // ==========================================
+  // COZY REAL-TIME DEVICE SYNCHRONIZER
+  // ==========================================
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const lastSyncedPayloadRef = React.useRef<string>('');
+
+  // 1. Initial State Load from Server or Seed Server
+  useEffect(() => {
+    const initSync = async () => {
+      try {
+        setIsSyncing(true);
+        const response = await fetch('/api/sync');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const data = result.data;
+            const payloadStr = JSON.stringify(data);
+            
+            if (data.profile) setProfile(data.profile);
+            if (data.tasks) setTasks(data.tasks);
+            if (data.appointments) setAppointments(data.appointments);
+            if (data.savedIdeas) setSavedIdeas(data.savedIdeas);
+            if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
+            if (data.officeMenu) setOfficeMenu(data.officeMenu);
+            if (data.officialMenus) setOfficialMenus(data.officialMenus);
+            
+            lastSyncedPayloadRef.current = payloadStr;
+            setLastSyncedAt(new Date());
+          } else {
+            // Seed the server with our existing local storage data
+            const currentLocalData = {
+              profile,
+              tasks,
+              appointments,
+              savedIdeas,
+              weeklyMenu,
+              officeMenu,
+              officialMenus
+            };
+            const currentStr = JSON.stringify(currentLocalData);
+            await fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: currentLocalData }),
+            });
+            lastSyncedPayloadRef.current = currentStr;
+            setLastSyncedAt(new Date());
+          }
+        }
+      } catch (err) {
+        console.error('Error on initial state sync:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    initSync();
+  }, []);
+
+  // 2. Poll server every 5 seconds to grab latest changes from the other partner
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/sync');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const serverDataStr = JSON.stringify(result.data);
+            
+            const currentLocalPayload = JSON.stringify({
+              profile,
+              tasks,
+              appointments,
+              savedIdeas,
+              weeklyMenu,
+              officeMenu,
+              officialMenus
+            });
+
+            if (serverDataStr !== currentLocalPayload && serverDataStr !== lastSyncedPayloadRef.current) {
+              const data = result.data;
+              if (data.profile) setProfile(data.profile);
+              if (data.tasks) setTasks(data.tasks);
+              if (data.appointments) setAppointments(data.appointments);
+              if (data.savedIdeas) setSavedIdeas(data.savedIdeas);
+              if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
+              if (data.officeMenu) setOfficeMenu(data.officeMenu);
+              if (data.officialMenus) setOfficialMenus(data.officialMenus);
+              
+              lastSyncedPayloadRef.current = serverDataStr;
+              setLastSyncedAt(new Date());
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Silent sync poll failed:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [profile, tasks, appointments, savedIdeas, weeklyMenu, officeMenu, officialMenus]);
+
+  // 3. Save local state modifications to the server
+  useEffect(() => {
+    const currentLocalData = {
+      profile,
+      tasks,
+      appointments,
+      savedIdeas,
+      weeklyMenu,
+      officeMenu,
+      officialMenus
+    };
+    const currentLocalPayload = JSON.stringify(currentLocalData);
+
+    if (lastSyncedPayloadRef.current && currentLocalPayload !== lastSyncedPayloadRef.current) {
+      const saveState = async () => {
+        try {
+          setIsSyncing(true);
+          const response = await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: currentLocalData }),
+          });
+          if (response.ok) {
+            lastSyncedPayloadRef.current = currentLocalPayload;
+            setLastSyncedAt(new Date());
+          }
+        } catch (err) {
+          console.error('Error saving state change to sync server:', err);
+        } finally {
+          setIsSyncing(false);
+        }
+      };
+
+      const timeout = setTimeout(saveState, 600);
+      return () => clearTimeout(timeout);
+    }
+  }, [profile, tasks, appointments, savedIdeas, weeklyMenu, officeMenu, officialMenus]);
 
   const colorPresets: Record<string, Record<string, string>> = {
     amber: {
@@ -1092,7 +1234,20 @@ export default function App() {
             <h1 className="font-serif font-bold text-lg md:text-xl text-amber-900 dark:text-amber-500 tracking-tight flex items-center gap-1.5 leading-none">
               Nido <Heart className="h-3 w-3 fill-amber-700 text-amber-700 animate-pulse" />
             </h1>
-            <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Pareja, Hogar & IA Alimentación</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium select-none">Pareja, Hogar & IA</p>
+              <div 
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold select-none transition-all ${
+                  isSyncing 
+                    ? 'bg-amber-100 text-amber-850 dark:bg-amber-950/40 dark:text-amber-300' 
+                    : 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
+                }`}
+                title={lastSyncedAt ? `Última sincronización: ${lastSyncedAt.toLocaleTimeString()}` : 'Buscando servidor...'}
+              >
+                <span className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></span>
+                {isSyncing ? 'Sincronizando' : 'Sincronizado'}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2444,7 +2599,41 @@ export default function App() {
                 </div>
               </div>
 
-              {/* INTEGRATED INTELLIGENT MENU GENERATOR FORM WITH CURRENT INGREDIENTS */}
+              {/* SUB TABS FOR ALIMENTACION TAB */}
+              <div className="flex border-b border-warm-200 dark:border-stone-850 gap-6 text-xs sm:text-sm pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveAlimentacionSubTab('general')}
+                  className={`pb-2.5 font-serif font-bold cursor-pointer border-b-2 transition-all ${
+                    activeAlimentacionSubTab === 'general'
+                      ? 'border-amber-900 text-amber-950 dark:text-amber-400'
+                      : 'border-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
+                  }`}
+                >
+                  🥗 Menú General Quincenal (3 Tiempos)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveAlimentacionSubTab('oficina');
+                    if (officeMenu.length === 0) {
+                      generateAiOfficeMenu();
+                    }
+                  }}
+                  className={`pb-2.5 font-serif font-bold cursor-pointer border-b-2 transition-all flex items-center gap-1.5 ${
+                    activeAlimentacionSubTab === 'oficina'
+                      ? 'border-amber-900 text-amber-955 dark:text-amber-400'
+                      : 'border-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
+                  }`}
+                >
+                  💼 Almuerzos para Oficina (Manu - Prep Meal IA)
+                  <span className="text-[9px] bg-amber-100 text-amber-950 dark:bg-stone-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold">IA Especializada</span>
+                </button>
+              </div>
+
+              {activeAlimentacionSubTab === 'general' ? (
+                <>
+                  {/* INTEGRATED INTELLIGENT MENU GENERATOR FORM WITH CURRENT INGREDIENTS */}
               <div className="bg-gradient-to-br from-white/90 to-amber-50/20 dark:from-stone-900/40 dark:to-stone-900/10 rounded-2xl p-6 border border-warm-200 dark:border-stone-800/80 space-y-4">
                 <div className="flex items-center gap-2 border-b border-warm-100 dark:border-stone-800 pb-2.5">
                   <span className="text-xl">🍲</span>
@@ -2731,6 +2920,125 @@ export default function App() {
                 </div>
 
               </div>
+            </>
+          ) : (
+            <div className="space-y-6 animate-fadeIn">
+              {/* SPECIALIZED OFFICE MEAL PLANNER PANEL */}
+              <div className="bg-gradient-to-br from-amber-950 to-amber-900 text-stone-100 rounded-3xl p-6 shadow-md border border-amber-950 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="space-y-2 text-center md:text-left">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-800/45 border border-amber-800 rounded-full text-[10px] font-mono tracking-widest uppercase text-amber-300 font-bold">
+                    💼 Tupper Prep Inteligente para Oficina
+                  </div>
+                  <h3 className="text-2xl font-serif font-bold text-amber-50">Almuerzos de Oficina de Manu</h3>
+                  <p className="text-xs text-amber-205/90 max-w-xl leading-normal">
+                    Eve hace home office, pero Manu sí tiene que ir de manera presencial a la oficina ciertos días. Diseñamos con IA recetas húmedas y rústicas que se disfrutan fantásticas al recalentarse en recipientes.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={generateAiOfficeMenu}
+                    disabled={loadingOfficeMenu}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-amber-50 text-amber-950 font-bold rounded-xl text-xs hover:bg-white flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-60"
+                  >
+                    {loadingOfficeMenu ? <RefreshCw className="h-4 w-4 animate-spin text-amber-950" /> : <Sparkles className="h-4 w-4 text-amber-700" />}
+                    <span>Generar con IA (Meal Prep)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* INPUT CONTAINER TO FILTER AND DEFINE INGREDIENTS */}
+              <div className="bg-white/60 dark:bg-stone-900/40 rounded-2xl p-5 border border-warm-200 dark:border-stone-800 space-y-3">
+                <label className="text-[10px] uppercase font-mono font-bold text-stone-400 block">
+                  Ingredientes clave para los recipientes de Manu:
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={disponiblesText}
+                    onChange={(e) => setDisponiblesText(e.target.value)}
+                    placeholder="Ej: bistec de res, pechuga de pollo, casamiento salvadoreño, huevos, papas..."
+                    className="flex-1 px-3 py-2 border rounded-xl text-xs dark:bg-stone-850 dark:border-stone-750 dark:text-white border-warm-200 focus:outline-none focus:border-amber-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateAiOfficeMenu}
+                    disabled={loadingOfficeMenu}
+                    className="px-4 py-2 bg-stone-900 hover:bg-stone-850 text-white rounded-xl text-xs font-semibold disabled:opacity-60 cursor-pointer"
+                  >
+                    {loadingOfficeMenu ? 'Generando...' : 'Fijar y Crear'}
+                  </button>
+                </div>
+              </div>
+
+              {/* LUNCH CARD ROW FOR WORKDAYS (LUNES A VIERNES) */}
+              {loadingOfficeMenu ? (
+                <div className="p-16 text-center space-y-4 bg-white/40 dark:bg-stone-900/30 rounded-2xl border border-warm-200 dark:border-stone-800">
+                  <RefreshCw className="h-8 w-8 animate-spin text-amber-900 mx-auto" />
+                  <p className="text-xs text-stone-400 italic font-medium animate-pulse">Armando el recetario de almuerzos de oficina especiales para Manu...</p>
+                </div>
+              ) : officeMenu && officeMenu.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {officeMenu.slice(0, 5).map((item, idx) => (
+                    <div
+                      key={item.day || idx}
+                      className="bg-white dark:bg-stone-900 rounded-2xl border border-warm-150 dark:border-stone-850 p-4 space-y-3 shadow-xs hover:border-amber-900/30 transition-all flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center border-b pb-1.5 border-warm-100 dark:border-stone-800">
+                          <span className="font-serif font-bold text-amber-950 dark:text-amber-550 text-xs">
+                            {item.day}
+                          </span>
+                          <span className="text-[8px] bg-amber-55 border border-amber-900/25 px-1.5 py-0.5 rounded text-amber-950 dark:bg-stone-950 dark:text-amber-400 tracking-wider font-bold">
+                            Oficina
+                          </span>
+                        </div>
+                        
+                        <h4 className="text-xs font-bold text-stone-850 dark:text-white font-sans">{item.mealTitle}</h4>
+                        <p className="text-[10px] text-stone-540 dark:text-stone-400 leading-normal line-clamp-4">{item.description}</p>
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t border-warm-100/60 dark:border-stone-800/60">
+                        {/* Preparation / Lunchbox tip */}
+                        <div className="p-2 bg-amber-50/50 dark:bg-stone-950/20 rounded-lg text-[9px] text-stone-605 dark:text-stone-300 font-sans border border-amber-100/40 leading-relaxed">
+                          <strong className="text-amber-900 dark:text-amber-500 font-bold">Tip de Contenedor:</strong><br />
+                          {item.prepTip}
+                        </div>
+
+                        {/* Microwave guide */}
+                        <div className="flex items-center gap-1.5 text-[9px] font-mono text-stone-400">
+                          <span>⏱️ Calentado:</span>
+                          <span className="bg-stone-105 border border-warm-150 px-1 py-0.2 rounded text-stone-600 dark:bg-stone-850 dark:text-stone-200 dark:border-stone-750 font-bold">
+                            {item.reheatTime}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-16 text-center bg-white/40 dark:bg-stone-900/30 rounded-2xl border border-warm-150 dark:border-stone-850 space-y-3">
+                  <p className="text-xs text-stone-400">¿No hay almuerzos agendados para oficina? Hagan click arriba para generar las recetas hidratadas con el apoyo de la IA.</p>
+                  <button
+                    type="button"
+                    onClick={generateAiOfficeMenu}
+                    className="px-4 py-2 bg-amber-900 hover:bg-stone-850 text-white rounded-xl text-xs font-semibold shadow-xs"
+                  >
+                    Generar Menú de Oficina de Manu
+                  </button>
+                </div>
+              )}
+
+              {/* SPECIAL RECIPE HINT BAR */}
+              <div className="bg-stone-50/60 dark:bg-stone-900/35 p-5 rounded-2xl border border-warm-200 dark:border-stone-800 space-y-2">
+                <h4 className="text-xs font-serif font-bold text-stone-800 dark:text-stone-200">💡 Secretos para el Almuerzo de Oficina Perfecto (Tupperware)</h4>
+                <p className="text-[11px] text-stone-500 leading-normal">
+                  Recuerden llevar siempre las salsas y caldos servidos directamente sobre el arroz, frijoles o papitas para evitar la pérdida de humedad al recalentar. En lugar de usar la potencia máxima (100%) en el microondas que deshidrata las carnes y las endurece, calienten sus comidas utilizando una potencia media al 60% por mayor tiempo. ¡Acompañen con tortillas de maíz calientes y disfruten su día de oficina sabroso!
+                </p>
+              </div>
+            </div>
+          )}
 
               {/* RECETARIO COMPLETO DE MINIMO 100 RECETAS */}
               <div className="bg-white/60 dark:bg-stone-900/40 rounded-2xl p-6 border border-warm-200 dark:border-stone-800 space-y-6">
