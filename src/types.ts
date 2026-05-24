@@ -15,6 +15,7 @@ export interface CoupleTask {
   completedAt?: string;
   scorePoints: number;
   dayOfWeek?: string; // Day of the week: "Lunes", "Martes", etc.
+  weekOffset?: number; // Offset from current week, 0 for this week, 1 for next week, etc.
 }
 
 export interface DateAppointment {

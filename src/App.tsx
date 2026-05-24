@@ -25,7 +25,12 @@ import {
   RefreshCw,
   TrendingUp,
   Lightbulb,
-  FileText
+  FileText,
+  MessageSquare,
+  CloudRain,
+  Thermometer,
+  Wind,
+  Droplets
 } from 'lucide-react';
 import { CoupleTask, DateAppointment, SavedDateIdea, DayMenu, CoupleProfile, OfficialMenu } from './types';
 import { defaultProfile, defaultTasks, defaultAppointments, defaultSavedIdeas, defaultMenu, motivationalQuotes } from './data/defaults';
@@ -33,8 +38,8 @@ import { allOneHundredRecipes, Recipe } from './data/recipes';
 import ChatbotOverlay from './components/ChatbotOverlay';
 
 export default function App() {
-  // Navigation Tabs: 'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea'>('dashboard');
+  // Navigation Labs: 'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea' | 'pizarra'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea' | 'pizarra'>('dashboard');
 
   // App Global State (Persisted in localStorage with default templates)
   const [profile, setProfile] = useState<CoupleProfile>(() => {
@@ -172,8 +177,32 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('nido_color_theme', colorTheme);
+  localStorage.setItem('nido_color_theme', colorTheme);
   }, [colorTheme]);
+
+  // Weekly Planner - Week selection offset state (e.g. 0 for current week, 1 for next week, etc.)
+  const [selectedWeekOffset, setSelectedWeekOffset] = useState<number>(0);
+
+  // Chalkboard / Message board state
+  const [chalkboardNotes, setChalkboardNotes] = useState<any[]>(() => {
+    const saved = localStorage.getItem('nido_chalkboard_notes');
+    try {
+      return saved ? JSON.parse(saved) : [
+        { id: 'note-1', text: '🥩 Recuerda descongelar la carne para la cena antes de las 5:00 PM.', writer: 'Eve', color: 'yellow', createdAt: new Date(Date.now() - 3600000).toISOString() },
+        { id: 'note-2', text: '🍞 Pasaré comprando pan dulce salvadoreño recién horneado por la tarde.', writer: 'Manu', color: 'blue', createdAt: new Date(Date.now() - 7200000).toISOString() }
+      ];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [newNoteInput, setNewNoteInput] = useState('');
+  const [newNoteWriter, setNewNoteWriter] = useState<'Eve' | 'Manu'>('Eve');
+  const [newNoteColor, setNewNoteColor] = useState<'yellow' | 'pink' | 'green' | 'blue' | 'purple'>('yellow');
+
+  useEffect(() => {
+    localStorage.setItem('nido_chalkboard_notes', JSON.stringify(chalkboardNotes));
+  }, [chalkboardNotes]);
 
   // ==========================================
   // COZY REAL-TIME DEVICE SYNCHRONIZER
@@ -201,6 +230,7 @@ export default function App() {
             if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
             if (data.officeMenu) setOfficeMenu(data.officeMenu);
             if (data.officialMenus) setOfficialMenus(data.officialMenus);
+            if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
             
             lastSyncedPayloadRef.current = payloadStr;
             setLastSyncedAt(new Date());
@@ -213,7 +243,8 @@ export default function App() {
               savedIdeas,
               weeklyMenu,
               officeMenu,
-              officialMenus
+              officialMenus,
+              chalkboardNotes
             };
             const currentStr = JSON.stringify(currentLocalData);
             await fetch('/api/sync', {
@@ -252,7 +283,8 @@ export default function App() {
               savedIdeas,
               weeklyMenu,
               officeMenu,
-              officialMenus
+              officialMenus,
+              chalkboardNotes
             });
 
             if (serverDataStr !== currentLocalPayload && serverDataStr !== lastSyncedPayloadRef.current) {
@@ -264,6 +296,7 @@ export default function App() {
               if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
               if (data.officeMenu) setOfficeMenu(data.officeMenu);
               if (data.officialMenus) setOfficialMenus(data.officialMenus);
+              if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
               
               lastSyncedPayloadRef.current = serverDataStr;
               setLastSyncedAt(new Date());
@@ -276,7 +309,7 @@ export default function App() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [profile, tasks, appointments, savedIdeas, weeklyMenu, officeMenu, officialMenus]);
+  }, [profile, tasks, appointments, savedIdeas, weeklyMenu, officeMenu, officialMenus, chalkboardNotes]);
 
   // 3. Save local state modifications to the server
   useEffect(() => {
@@ -287,7 +320,8 @@ export default function App() {
       savedIdeas,
       weeklyMenu,
       officeMenu,
-      officialMenus
+      officialMenus,
+      chalkboardNotes
     };
     const currentLocalPayload = JSON.stringify(currentLocalData);
 
@@ -314,7 +348,7 @@ export default function App() {
       const timeout = setTimeout(saveState, 600);
       return () => clearTimeout(timeout);
     }
-  }, [profile, tasks, appointments, savedIdeas, weeklyMenu, officeMenu, officialMenus]);
+  }, [profile, tasks, appointments, savedIdeas, weeklyMenu, officeMenu, officialMenus, chalkboardNotes]);
 
   const colorPresets: Record<string, Record<string, string>> = {
     amber: {
@@ -628,14 +662,18 @@ export default function App() {
     };
   };
 
-  // Helper to calculate exact dates of the current week (Monday to Sunday)
-  const getCurrentWeekDates = () => {
+  // Helper to calculate exact dates of the current week (Monday to Sunday) with an optional week offset
+  const getCurrentWeekDates = (weekOffset = 0) => {
     const today = new Date();
+    // Shift date based on week offset
+    today.setDate(today.getDate() + (weekOffset * 7));
     const currentDay = today.getDay(); // 0: Sunday, 1: Monday, etc.
     const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
     
     const dates = [];
     const daysNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    
+    const actualToday = new Date().toDateString();
     
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
@@ -647,7 +685,7 @@ export default function App() {
         name: daysNames[i],
         label: dayLabelRaw,
         fullDateStr: d.toISOString().split('T')[0],
-        isToday: d.toDateString() === today.toDateString()
+        isToday: d.toDateString() === actualToday
       });
     }
     return dates;
@@ -729,8 +767,9 @@ export default function App() {
   };
 
   // Gamification & streak helper formulas
-  const totalCompletedTasks = tasks.filter(t => t.completed).length;
-  const progressPercent = tasks.length > 0 ? Math.round((totalCompletedTasks / tasks.length) * 100) : 0;
+  const activeWeekTasks = tasks.filter(t => (t.weekOffset || 0) === selectedWeekOffset);
+  const totalCompletedTasks = activeWeekTasks.filter(t => t.completed).length;
+  const progressPercent = activeWeekTasks.length > 0 ? Math.round((totalCompletedTasks / activeWeekTasks.length) * 100) : 0;
 
   const claimPointsTask = (taskId: string, spouse: 'partner1' | 'partner2' | 'both') => {
     setTasks(prev => prev.map(t => {
@@ -780,6 +819,7 @@ export default function App() {
       autoRepeat: !!newTask.autoRepeat,
       completed: false,
       scorePoints: newTask.priority === 'Alta' ? 30 : newTask.priority === 'Media' ? 20 : 10,
+      weekOffset: selectedWeekOffset,
     };
     setTasks(prev => [task, ...prev]);
     setNewTask({
@@ -1360,6 +1400,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('pizarra')}
+              className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl w-14 md:w-16 transition-all duration-200 cursor-pointer ${
+                activeTab === 'pizarra'
+                  ? 'bg-amber-900 text-white shadow-md shadow-amber-900/20 scale-105'
+                  : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-amber-900 dark:hover:text-amber-500'
+              }`}
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Pizarra</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('perfil')}
               className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl w-14 md:w-16 transition-all duration-200 cursor-pointer ${
                 activeTab === 'perfil'
@@ -1517,39 +1569,45 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Micro display of top 3 pending daily tasks */}
+                    {/* Micro display of top 3 pending daily tasks of current week */}
                     <div className="space-y-2">
-                      <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest">Tareas Prioritarias de Hoy</p>
-                      {tasks.slice(0, 3).map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => claimPointsTask(item.id, item.responsable === 'Él' ? 'partner1' : item.responsable === 'Ella' ? 'partner2' : 'both')}
-                          className="flex items-center justify-between p-2.5 rounded-xl border border-warm-100 dark:border-stone-850/50 bg-stone-50/50 dark:bg-stone-900/40 hover:bg-amber-50/40 dark:hover:bg-amber-500/10 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                              item.completed
-                                ? 'bg-amber-950 text-white border-amber-950'
-                                : 'border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900'
-                            }`}>
-                              {item.completed && <CheckCircle className="h-3.5 w-3.5 fill-white text-amber-950" />}
-                            </div>
-                            <div>
-                              <p className={`text-xs font-medium ${item.completed ? 'line-through text-stone-400' : ''}`}>
-                                {item.name}
-                              </p>
-                              <p className="text-[9px] text-stone-400 font-mono">
-                                Resp: {item.responsable} • +{item.scorePoints} Pts • {item.suggestedTime} hrs
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`text-[9px] inline-block px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                            item.priority === 'Alta' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400' : 'bg-stone-100 text-stone-700'
-                          }`}>
-                            {item.priority}
-                          </span>
+                      <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest">Tareas Prioritarias Pendientes de Hoy</p>
+                      {tasks.filter(t => !t.completed && (t.weekOffset || 0) === 0).length === 0 ? (
+                        <div className="py-5 px-3 text-center border border-dashed border-warm-200 dark:border-stone-800 rounded-xl bg-stone-55/10">
+                          <p className="text-xs text-stone-400">🎉 ¡Felicidades! No hay tareas pendientes de esta semana.</p>
                         </div>
-                      ))}
+                      ) : (
+                        tasks.filter(t => !t.completed && (t.weekOffset || 0) === 0).slice(0, 3).map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() => claimPointsTask(item.id, item.responsable === 'Él' ? 'partner1' : item.responsable === 'Ella' ? 'partner2' : 'both')}
+                            className="flex items-center justify-between p-2.5 rounded-xl border border-warm-100 dark:border-stone-850/50 bg-stone-50/50 dark:bg-stone-900/40 hover:bg-amber-50/40 dark:hover:bg-amber-500/10 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                item.completed
+                                  ? 'bg-amber-950 text-white border-amber-955'
+                                  : 'border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900'
+                              }`}>
+                                {item.completed && <CheckCircle className="h-3.5 w-3.5 fill-white text-amber-950" />}
+                              </div>
+                              <div>
+                                <p className={`text-xs font-medium ${item.completed ? 'line-through text-stone-400' : ''}`}>
+                                  {item.name}
+                                </p>
+                                <p className="text-[9px] text-stone-400 font-mono">
+                                  Resp: {item.responsable} • +{item.scorePoints} Pts • {item.suggestedTime} hrs
+                                </p>
+                              </div>
+                            </div>
+                            <span className={`text-[9px] inline-block px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                              item.priority === 'Alta' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400' : 'bg-stone-100 text-stone-700'
+                            }`}>
+                              {item.priority}
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -2335,20 +2393,44 @@ export default function App() {
                   
                   {/* Día actual visual week tracker */}
                   <div className="bg-white/60 dark:bg-stone-900/40 rounded-2xl p-5 border border-warm-200 dark:border-stone-800 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-warm-100 dark:border-stone-800 pb-3 gap-2">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-warm-100 dark:border-stone-800 pb-3 gap-3">
                       <div>
                         <h3 className="font-serif font-bold text-base text-stone-850 dark:text-neutral-100">Planificador Semanal de Tareas</h3>
-                        <p className="text-[11px] text-stone-400">Seleccionen un día para ver o delegar tareas específicas de esta semana</p>
+                        <p className="text-[11px] text-stone-400">Seleccionen un día y desplácense entre semanas para planear a futuro</p>
                       </div>
-                      <div className="text-[10px] font-mono bg-warm-50/55 dark:bg-stone-850 px-2.5 py-1 rounded text-stone-500 uppercase tracking-widest font-bold self-start sm:self-auto border border-warm-200 dark:border-stone-750">
-                        Semana del {getCurrentWeekDates()[0].label} al {getCurrentWeekDates()[6].label}
+                      <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                        <div className="flex items-center gap-1 bg-warm-50/70 dark:bg-stone-850 p-1 rounded-lg border border-warm-200/60 dark:border-stone-750">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWeekOffset(prev => Math.max(0, prev - 1))}
+                            disabled={selectedWeekOffset === 0}
+                            className="px-2 py-1 hover:bg-stone-200/60 dark:hover:bg-stone-800 rounded text-stone-600 dark:text-stone-300 font-bold text-xs disabled:opacity-30 cursor-pointer transition-colors"
+                            title="Semana anterior"
+                          >
+                            ←
+                          </button>
+                          <span className="text-[10px] font-mono font-bold uppercase px-2 text-stone-605 dark:text-stone-350 select-none">
+                            {selectedWeekOffset === 0 ? 'Esta Semana' : selectedWeekOffset === 1 ? 'Próxima Semana' : `Semana +${selectedWeekOffset}`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWeekOffset(prev => Math.min(6, prev + 1))}
+                            className="px-2 py-1 hover:bg-stone-200/60 dark:hover:bg-stone-800 rounded text-stone-600 dark:text-stone-300 font-bold text-xs cursor-pointer transition-colors"
+                            title="Siguiente semana"
+                          >
+                            →
+                          </button>
+                        </div>
+                        <div className="text-[10px] font-mono bg-amber-50 dark:bg-stone-900 px-2.5 py-1.5 rounded-lg text-amber-900 dark:text-amber-500 font-bold border border-amber-200/30">
+                          {getCurrentWeekDates(selectedWeekOffset)[0].label} al {getCurrentWeekDates(selectedWeekOffset)[6].label}
+                        </div>
                       </div>
                     </div>
 
                     {/* Horizontal 7-Day Selector Card Row */}
                     <div className="grid grid-cols-7 gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                      {getCurrentWeekDates().map((day) => {
-                        const dayTasks = tasks.filter(t => (t.dayOfWeek || 'Lunes') === day.name);
+                      {getCurrentWeekDates(selectedWeekOffset).map((day) => {
+                        const dayTasks = tasks.filter(t => (t.dayOfWeek || 'Lunes') === day.name && (t.weekOffset || 0) === selectedWeekOffset);
                         const pendingCount = dayTasks.filter(t => !t.completed).length;
                         const isSelected = selectedChoreDay === day.name;
 
@@ -2360,15 +2442,15 @@ export default function App() {
                             className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center transition-all min-w-[58px] cursor-pointer ${
                               isSelected
                                 ? 'bg-amber-900 border-amber-955 text-white shadow-xs font-bold scale-[1.02]'
-                                : day.isToday
-                                ? 'bg-amber-50 dark:bg-stone-950 border-amber-900/40 text-stone-800 dark:text-neutral-100 font-semibold animate-pulse'
+                                : day.isToday && selectedWeekOffset === 0
+                                ? 'bg-amber-50 dark:bg-stone-950 border-amber-900/40 text-stone-800 dark:text-neutral-100 font-semibold ring-2 ring-amber-500/30'
                                 : 'bg-stone-50/50 dark:bg-stone-900/80 border-warm-200 dark:border-stone-800 text-stone-500 dark:text-stone-400 hover:bg-stone-50/80'
                             }`}
                           >
                             <span className="text-[8px] uppercase tracking-wider block opacity-70">{day.name.slice(0, 3)}</span>
                             <span className="text-[15px] font-serif block my-0.5">{day.num}</span>
                             {pendingCount > 0 ? (
-                              <span className={`text-[8px] px-1 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-red-50 text-red-750'}`}>{pendingCount}</span>
+                              <span className={`text-[8px] px-1 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-red-50 text-red-750 dark:bg-red-950/40 dark:text-red-400'}`}>{pendingCount}</span>
                             ) : dayTasks.length > 0 ? (
                               <span className="text-[9px] text-green-600">✓</span>
                             ) : (
@@ -2401,7 +2483,12 @@ export default function App() {
                     </div>
 
                     <div className="space-y-3">
-                      {tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay).map((task) => (
+                      {tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay && (t.weekOffset || 0) === selectedWeekOffset).length === 0 ? (
+                        <div className="p-10 text-center border border-dashed border-warm-250 dark:border-stone-800 rounded-2xl bg-stone-50/20 dark:bg-stone-900/10">
+                          <p className="text-xs text-stone-400 italic">No hay tareas pendientes ni programadas para el {selectedChoreDay} de esta semana. ¡Súper limpio! ✨</p>
+                        </div>
+                      ) : (
+                        tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay && (t.weekOffset || 0) === selectedWeekOffset).map((task) => (
                         <div
                           key={task.id}
                           className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -2476,13 +2563,7 @@ export default function App() {
                             </button>
                           </div>
                         </div>
-                      ))}
-
-                      {tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay).length === 0 && (
-                        <div className="p-12 text-center text-xs text-stone-400 italic">
-                          No hay tareas programadas para este {selectedChoreDay}. ¡Momento de descansar y disfrutar su racha!
-                        </div>
-                      )}
+                      )))}
                     </div>
                   </div>
                 </div>
