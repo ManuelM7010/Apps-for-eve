@@ -908,31 +908,34 @@ export default function App() {
   const totalCompletedTasks = activeWeekTasks.filter(t => t.completed).length;
   const progressPercent = activeWeekTasks.length > 0 ? Math.round((totalCompletedTasks / activeWeekTasks.length) * 100) : 0;
 
-  const claimPointsTask = (taskId: string, spouse: 'partner1' | 'partner2' | 'both') => {
+  const claimPointsTask = (taskId: string, spouse?: 'partner1' | 'partner2' | 'both') => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
+        // Look up who is the final assigned responsible on the task right now
+        const finalSpouse = t.responsable === 'Él' ? 'partner1' : t.responsable === 'Ella' ? 'partner2' : 'both';
+        
         if (!t.completed) {
-          // Add points based on assignment
-          const pointsEarned = t.scorePoints;
+          // Add points based on dynamic assigned responsible
+          const pointsEarned = t.scorePoints || 10;
           const today = getLocalTodayString();
           setProfile(prevProf => {
             const { streakDays, lastActivityDate } = getNextStreakData(prevProf, today);
             return {
               ...prevProf,
-              points1: spouse === 'partner1' ? prevProf.points1 + pointsEarned : prevProf.points1,
-              points2: spouse === 'partner2' ? prevProf.points2 + pointsEarned : prevProf.points2,
+              points1: (finalSpouse === 'partner1' || finalSpouse === 'both') ? prevProf.points1 + pointsEarned : prevProf.points1,
+              points2: (finalSpouse === 'partner2' || finalSpouse === 'both') ? prevProf.points2 + pointsEarned : prevProf.points2,
               streakDays,
               lastActivityDate
             };
           });
           return { ...t, completed: true, completedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
         } else {
-          // Revert points
-          const pointsEarned = t.scorePoints;
+          // Revert points based on dynamic assigned responsible
+          const pointsEarned = t.scorePoints || 10;
           setProfile(prevProf => ({
             ...prevProf,
-            points1: spouse === 'partner1' ? Math.max(0, prevProf.points1 - pointsEarned) : prevProf.points1,
-            points2: spouse === 'partner2' ? Math.max(0, prevProf.points2 - pointsEarned) : prevProf.points2,
+            points1: (finalSpouse === 'partner1' || finalSpouse === 'both') ? Math.max(0, prevProf.points1 - pointsEarned) : prevProf.points1,
+            points2: (finalSpouse === 'partner2' || finalSpouse === 'both') ? Math.max(0, prevProf.points2 - pointsEarned) : prevProf.points2,
           }));
           return { ...t, completed: false };
         }
@@ -1003,10 +1006,54 @@ export default function App() {
   const handleUpdateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
-    setTasks(prev => prev.map(t => t.id === editingTask.id ? { 
-      ...editingTask, 
-      scorePoints: editingTask.priority === 'Alta' ? 30 : editingTask.priority === 'Media' ? 20 : 10 
-    } : t));
+    
+    setTasks(prev => prev.map(t => {
+      if (t.id === editingTask.id) {
+        const newScorePoints = editingTask.priority === 'Alta' ? 30 : editingTask.priority === 'Media' ? 20 : 10;
+        
+        // If the task was already completed, adjust the profile scores seamlessly!
+        if (t.completed) {
+          const oldSpouse = t.responsable === 'Él' ? 'partner1' : t.responsable === 'Ella' ? 'partner2' : 'both';
+          const newSpouse = editingTask.responsable === 'Él' ? 'partner1' : editingTask.responsable === 'Ella' ? 'partner2' : 'both';
+          const oldPoints = t.scorePoints || 10;
+          const newPoints = newScorePoints;
+          
+          setProfile(prevProf => {
+            let p1 = prevProf.points1;
+            let p2 = prevProf.points2;
+            
+            // 1. Subtract old points from old assignees
+            if (oldSpouse === 'partner1' || oldSpouse === 'both') {
+              p1 = Math.max(0, p1 - oldPoints);
+            }
+            if (oldSpouse === 'partner2' || oldSpouse === 'both') {
+              p2 = Math.max(0, p2 - oldPoints);
+            }
+            
+            // 2. Add new points to new assignees
+            if (newSpouse === 'partner1' || newSpouse === 'both') {
+              p1 = p1 + newPoints;
+            }
+            if (newSpouse === 'partner2' || newSpouse === 'both') {
+              p2 = p2 + newPoints;
+            }
+            
+            return {
+              ...prevProf,
+              points1: p1,
+              points2: p2
+            };
+          });
+        }
+        
+        return {
+          ...editingTask,
+          scorePoints: newScorePoints
+        };
+      }
+      return t;
+    }));
+    
     setEditingTask(null);
     setReminders(prev => [`La tarea "${editingTask.name}" ha sido actualizada con éxito. 🌸`, ...prev]);
   };
@@ -2451,6 +2498,7 @@ export default function App() {
                         <option value="Restaurantes">Restaurantes</option>
                         <option value="Cafés">Cafés Cozy</option>
                         <option value="Miradores">Miradores</option>
+                        <option value="Hoteles y Hospedajes">Hoteles, Glampings y Hospedajes 🏨</option>
                         <option value="Lugares económicos de paseo">Paseos económicos</option>
                         <option value="Lugares premium">Lugares Premium</option>
                         <option value="Eventos y actividades de día">Actividades de Día</option>
@@ -2690,20 +2738,29 @@ export default function App() {
                         <div className="flex items-center gap-1 bg-warm-50/70 dark:bg-stone-850 p-1 rounded-lg border border-warm-200/60 dark:border-stone-750">
                           <button
                             type="button"
-                            onClick={() => setSelectedWeekOffset(prev => Math.max(0, prev - 1))}
-                            disabled={selectedWeekOffset === 0}
+                            onClick={() => setSelectedWeekOffset(prev => Math.max(-12, prev - 1))}
+                            disabled={selectedWeekOffset === -12}
                             className="px-2 py-1 hover:bg-stone-200/60 dark:hover:bg-stone-800 rounded text-stone-600 dark:text-stone-300 font-bold text-xs disabled:opacity-30 cursor-pointer transition-colors"
                             title="Semana anterior"
                           >
                             ←
                           </button>
                           <span className="text-[10px] font-mono font-bold uppercase px-2 text-stone-605 dark:text-stone-350 select-none">
-                            {selectedWeekOffset === 0 ? 'Esta Semana' : selectedWeekOffset === 1 ? 'Próxima Semana' : `Semana +${selectedWeekOffset}`}
+                            {selectedWeekOffset === 0 
+                              ? 'Esta Semana' 
+                              : selectedWeekOffset === 1 
+                              ? 'Próxima Semana' 
+                              : selectedWeekOffset === -1
+                              ? 'Semana Anterior (-1)'
+                              : selectedWeekOffset > 0 
+                              ? `Semana +${selectedWeekOffset}` 
+                              : `Semana ${selectedWeekOffset}`}
                           </span>
                           <button
                             type="button"
-                            onClick={() => setSelectedWeekOffset(prev => Math.min(6, prev + 1))}
-                            className="px-2 py-1 hover:bg-stone-200/60 dark:hover:bg-stone-800 rounded text-stone-600 dark:text-stone-300 font-bold text-xs cursor-pointer transition-colors"
+                            onClick={() => setSelectedWeekOffset(prev => Math.min(12, prev + 1))}
+                            disabled={selectedWeekOffset === 12}
+                            className="px-2 py-1 hover:bg-stone-200/60 dark:hover:bg-stone-800 rounded text-stone-600 dark:text-stone-300 font-bold text-xs disabled:opacity-30 cursor-pointer transition-colors"
                             title="Siguiente semana"
                           >
                             →
@@ -2788,7 +2845,7 @@ export default function App() {
                               key={task.id}
                               className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                                 task.completed
-                                  ? 'bg-stone-50/50 dark:bg-stone-900/20 border-warm-150 dark:border-stone-900'
+                                  ? 'bg-emerald-50/30 dark:bg-emerald-955/10 border-emerald-200/40 dark:border-emerald-900/20 opacity-70 shadow-none'
                                   : 'bg-white dark:bg-stone-900 border-warm-200 dark:border-stone-800 shadow-sm hover:border-amber-900/40'
                               }`}
                             >
@@ -4380,7 +4437,15 @@ export default function App() {
               <div>
                 <h3 className="font-serif font-bold text-base">Crear Tarea del Hogar</h3>
                 <p className="text-[10px] text-amber-805 dark:text-amber-500 font-mono font-bold">
-                  {selectedWeekOffset === 0 ? 'Para esta semana' : selectedWeekOffset === 1 ? 'Para la próxima semana' : `Para la semana (+${selectedWeekOffset})`}
+                  {selectedWeekOffset === 0 
+                    ? 'Para esta semana' 
+                    : selectedWeekOffset === 1 
+                    ? 'Para la próxima semana' 
+                    : selectedWeekOffset === -1
+                    ? 'Para la semana anterior'
+                    : selectedWeekOffset > 0 
+                    ? `Para la semana (+${selectedWeekOffset})` 
+                    : `Para la semana (${selectedWeekOffset})`}
                 </p>
               </div>
               <button
