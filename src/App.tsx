@@ -30,7 +30,8 @@ import {
   CloudRain,
   Thermometer,
   Wind,
-  Droplets
+  Droplets,
+  Edit2
 } from 'lucide-react';
 import { CoupleTask, DateAppointment, SavedDateIdea, DayMenu, CoupleProfile, OfficialMenu } from './types';
 import { defaultProfile, defaultTasks, defaultAppointments, defaultSavedIdeas, defaultMenu, motivationalQuotes } from './data/defaults';
@@ -429,7 +430,12 @@ export default function App() {
     }
   `;
 
-  // App States for interactive creation
+  const [showWeatherModal, setShowWeatherModal] = useState(false);
+  
+  // App States for interactive creation & editing
+  const [editingTask, setEditingTask] = useState<CoupleTask | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<DateAppointment | null>(null);
+  
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [selectedChoreDay, setSelectedChoreDay] = useState<string>(() => {
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -585,40 +591,80 @@ export default function App() {
     // Base temperature based on microclimates in El Salvador
     let baseTemp = 28; // Default for San Salvador
     let condition = 'Soleado';
+    let detailCondition = 'Mayormente Soleado';
+    let humidity = '62%';
+    let wind = '11 km/h';
+    let uvIndex = '9 (Muy Alto)';
+    let aqi = '42 (Excelente)';
+    let precip = '10%';
     
     const cityLower = city.toLowerCase();
     
     if (cityLower.includes('pital') || cityLower.includes('chalatenango') || cityLower.includes('ignacio')) {
-      baseTemp = 16;
+      baseTemp = 15;
       condition = 'Fresco';
+      detailCondition = 'Neblina Fresca y Pino';
+      humidity = '88%';
+      wind = '22 km/h';
+      uvIndex = '5 (Moderado)';
+      aqi = '11 (Pristino)';
+      precip = '40%';
     } else if (cityLower.includes('tonacatepeque')) {
       baseTemp = 26;
       condition = 'Agradable';
+      detailCondition = 'Clima Templado Despejado';
+      humidity = '65%';
+      wind = '12 km/h';
+      uvIndex = '8 (Muy Alto)';
+      aqi = '25 (Excelente)';
+      precip = '15%';
     } else if (cityLower.includes('boquerón') || cityLower.includes('boqueron') || cityLower.includes('paneca') || cityLower.includes('ataco') || cityLower.includes('ahuachapán') || cityLower.includes('ahuachapan') || cityLower.includes('renderos') || cityLower.includes('suchitoto') || cityLower.includes('perquín') || cityLower.includes('morazán') || cityLower.includes('morazan')) {
-      baseTemp = 20;
+      baseTemp = 19;
       condition = 'Templado';
+      detailCondition = 'Parcialmente Nublado';
+      humidity = '70%';
+      wind = '16 km/h';
+      uvIndex = '7 (Alto)';
+      aqi = '18 (Pristino)';
+      precip = '20%';
     } else if (cityLower.includes('playa') || cityLower.includes('tunco') || cityLower.includes('zonte') || cityLower.includes('sunzal') || cityLower.includes('libertad') || cityLower.includes('unión') || cityLower.includes('union') || cityLower.includes('costa del sol') || cityLower.includes('jiquilisco') || cityLower.includes('paz') || cityLower.includes('cuco') || cityLower.includes('san miguel')) {
       baseTemp = 32;
       condition = 'Cálido';
+      detailCondition = 'Despejado y Brisa Marina';
+      humidity = '74%';
+      wind = '15 km/h';
+      uvIndex = '11 (Extremo)';
+      aqi = '30 (Excelente)';
+      precip = '5%';
     } else if (cityLower.includes('tecla') || cityLower.includes('antiguo') || cityLower.includes('santa ana')) {
-      baseTemp = 24;
+      baseTemp = 23;
       condition = 'Agradable';
+      detailCondition = 'Parcialmente Despejado';
+      humidity = '64%';
+      wind = '13 km/h';
+      uvIndex = '8 (Muy Alto)';
+      aqi = '35 (Excelente)';
+      precip = '15%';
     }
     
     // Adjust based on hour of the day (cool in midnight/morning, warm in afternoon)
     let hourOffset = 0;
     if (hour >= 23 || hour < 5) {
       hourOffset = -6; // Colder at night
+      detailCondition = 'Despejado y Fresco (Noche)';
     } else if (hour >= 5 && hour < 8) {
       hourOffset = -4; // Cool morning
+      detailCondition = 'Mañana Fresca y Despejada';
     } else if (hour >= 8 && hour < 11) {
       hourOffset = -1;
     } else if (hour >= 11 && hour < 15) {
       hourOffset = 3; // Peak heat of midday
+      detailCondition = detailCondition + ' • Picos de Calor';
     } else if (hour >= 15 && hour < 18) {
       hourOffset = 1;
     } else {
       hourOffset = -2; // Sunset/evening cooling
+      detailCondition = 'Atemperado (Atardecer)';
     }
     
     // Add minor minute-based decimal variance to look live and realistic
@@ -635,11 +681,85 @@ export default function App() {
       icon = '⛅';
     }
     
+    // Generate simulated Google Weather 5-day prediction
+    const daysName = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const forecastDays = [];
+    for (let i = 0; i < 5; i++) {
+      const predDate = new Date();
+      predDate.setDate(now.getDate() + i);
+      const dayLabel = i === 0 ? 'Hoy' : daysName[predDate.getDay()];
+      
+      let dayTempMin = Math.round(baseTemp - 5 + (i % 2));
+      let dayTempMax = Math.round(baseTemp + 2 - (i % 3));
+      let dayIcon = '☀️';
+      let dayCond = 'Soleado';
+      
+      if (condition === 'Fresco') {
+        dayIcon = '🌫️';
+        dayCond = 'Neblina';
+      } else if (condition === 'Templado') {
+        dayIcon = '⛅';
+        dayCond = 'Parcial Nublado';
+      } else if (condition === 'Cálido') {
+        dayIcon = '☀️';
+        dayCond = 'Caluroso';
+      } else if (i === 2 || i === 4) {
+        dayIcon = '⛅';
+        dayCond = 'Parcial Nublado';
+      }
+      
+      forecastDays.push({
+        day: dayLabel,
+        tempMin: `${dayTempMin}°C`,
+        tempMax: `${dayTempMax}°C`,
+        icon: dayIcon,
+        condition: dayCond
+      });
+    }
+
+    // Generate simulated hourly weather (6 upcoming hours)
+    const forecastHours = [];
+    for (let h = 0; h < 6; h++) {
+      const targetHourVal = (hour + h * 2) % 24;
+      const hourLabel = `${targetHourVal.toString().padStart(2, '0')}:00`;
+      
+      let itemTemp = baseTemp;
+      let itemIcon = '☀️';
+      if (targetHourVal >= 23 || targetHourVal < 5) {
+        itemTemp -= 5;
+        itemIcon = '🌙';
+      } else if (targetHourVal >= 5 && targetHourVal < 8) {
+        itemTemp -= 3;
+        itemIcon = '⛅';
+      } else if (targetHourVal >= 11 && targetHourVal < 15) {
+        itemTemp += 3;
+        itemIcon = '☀️';
+      } else {
+        itemIcon = '⛅';
+      }
+      const itemFormattedTemp = (itemTemp + (h % 2)).toFixed(0);
+      
+      forecastHours.push({
+        hour: hourLabel,
+        temp: `${itemFormattedTemp}°`,
+        icon: itemIcon,
+        precip: h % 3 === 0 ? '25%' : '0%'
+      });
+    }
+    
     return {
       city,
       temp: `${finalTemp}°C`,
       condition,
-      icon
+      detailCondition,
+      humidity,
+      wind,
+      uvIndex,
+      aqi,
+      precip,
+      icon,
+      forecastDays,
+      forecastHours
     };
   };
 
@@ -766,6 +886,23 @@ export default function App() {
     });
   };
 
+  const addChalkboardNote = (text: string, writer: 'Eve' | 'Manu', color: string) => {
+    if (!text.trim()) return;
+    const newNote = {
+      id: `note-${Date.now()}`,
+      text: text.trim(),
+      writer,
+      color,
+      createdAt: new Date().toISOString()
+    };
+    setChalkboardNotes(prev => [newNote, ...prev]);
+    triggerActivityStreak();
+  };
+
+  const deleteChalkboardNote = (noteId: string) => {
+    setChalkboardNotes(prev => prev.filter(note => note.id !== noteId));
+  };
+
   // Gamification & streak helper formulas
   const activeWeekTasks = tasks.filter(t => (t.weekOffset || 0) === selectedWeekOffset);
   const totalCompletedTasks = activeWeekTasks.filter(t => t.completed).length;
@@ -860,6 +997,136 @@ export default function App() {
       notes: '',
     });
     setShowAddAppointmentModal(false);
+  };
+
+  // Handler to save modifications to an existing task
+  const handleUpdateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+    setTasks(prev => prev.map(t => t.id === editingTask.id ? { 
+      ...editingTask, 
+      scorePoints: editingTask.priority === 'Alta' ? 30 : editingTask.priority === 'Media' ? 20 : 10 
+    } : t));
+    setEditingTask(null);
+    setReminders(prev => [`La tarea "${editingTask.name}" ha sido actualizada con éxito. 🌸`, ...prev]);
+  };
+
+  // Handler to save modifications to an existing appointment
+  const handleUpdateAppointment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAppointment) return;
+    setAppointments(prev => prev.map(a => a.id === editingAppointment.id ? editingAppointment : a));
+    setEditingAppointment(null);
+    setReminders(prev => [`La cita "${editingAppointment.title}" ha sido editada con éxito. ✨`, ...prev]);
+  };
+
+  // Download all client-side state as a backup JSON file
+  const handleExportBackup = () => {
+    const backupData = {
+      profile,
+      tasks,
+      appointments,
+      savedIdeas,
+      weeklyMenu,
+      officeMenu,
+      officialMenus,
+      chalkboardNotes
+    };
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(backupData, null, 2)
+    )}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute('download', 'nido_respaldo_evU.json');
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    setReminders(prev => ["Copia de seguridad del nido descargada con éxito. 📥", ...prev]);
+  };
+
+  // Upload and parse backup JSON file, restoring all client states
+  const handleImportBackup = (e: React.FormEvent) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('nido-import-file-input') as HTMLInputElement;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      const fileReader = new FileReader();
+      fileReader.readAsText(fileInput.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.profile) setProfile(parsed.profile);
+            if (parsed.tasks) setTasks(parsed.tasks);
+            if (parsed.appointments) setAppointments(parsed.appointments);
+            if (parsed.savedIdeas) setSavedIdeas(parsed.savedIdeas);
+            if (parsed.weeklyMenu) setWeeklyMenu(parsed.weeklyMenu);
+            if (parsed.officeMenu) setOfficeMenu(parsed.officeMenu);
+            if (parsed.officialMenus) setOfficialMenus(parsed.officialMenus);
+            if (parsed.chalkboardNotes) setChalkboardNotes(parsed.chalkboardNotes);
+
+            alert("¡Éxito total! Toda la información de su nido de amor (EvÜ) ha sido restaurada e importada perfectamente. ✨🏡 Recuerden activar la sincronización para unificar.");
+            setReminders(prev => ["Copia de seguridad importada con éxito. 📬", ...prev]);
+          } else {
+            alert("El archivo de copia de seguridad no parece tener la estructura correcta.");
+          }
+        } catch (error) {
+          alert("Ocurrió un error al leer el archivo. Asegúrate de cargar un archivo JSON válido de copia de seguridad.");
+        }
+      };
+    } else {
+      alert("Por favor selecciona primero un archivo JSON de respaldo.");
+    }
+  };
+
+  // Force fetch/push of states immediately to unblock sync
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/sync');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const data = result.data;
+          
+          if (data.profile) setProfile(data.profile);
+          if (data.tasks) setTasks(data.tasks);
+          if (data.appointments) setAppointments(data.appointments);
+          if (data.savedIdeas) setSavedIdeas(data.savedIdeas);
+          if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
+          if (data.officeMenu) setOfficeMenu(data.officeMenu);
+          if (data.officialMenus) setOfficialMenus(data.officialMenus);
+          if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
+          
+          lastSyncedPayloadRef.current = JSON.stringify(data);
+          setLastSyncedAt(new Date());
+          alert("¡Sincronización manual forzada realizada con éxito! 🔄 Conectividad restablecida.");
+        } else {
+          // Push current local
+          const currentLocalData = {
+            profile,
+            tasks,
+            appointments,
+            savedIdeas,
+            weeklyMenu,
+            officeMenu,
+            officialMenus,
+            chalkboardNotes
+          };
+          await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: currentLocalData }),
+          });
+          lastSyncedPayloadRef.current = JSON.stringify(currentLocalData);
+          setLastSyncedAt(new Date());
+          alert("Sincronización inicializada: Tus datos locales han sido subidos al servidor remoto.");
+        }
+      }
+    } catch (err) {
+      alert("No se pudo contactar al servidor de sincronización. Comprueba el estado del backend.");
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   // AI Citas Generator trigger
@@ -1301,10 +1568,14 @@ export default function App() {
 
         {/* Right tools (Theme toggler, Weather shortcut, and Profile indicators) */}
         <div className="flex items-center gap-3">
-          <div className="bg-amber-100/60 dark:bg-stone-900 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-700 dark:text-stone-300 flex items-center gap-1 border border-warm-200 dark:border-stone-800" title={`Clima en ${getDynamicWeather().city}: ${getDynamicWeather().condition}`}>
+          <button
+            onClick={() => setShowWeatherModal(true)}
+            className="bg-amber-100/60 hover:bg-amber-100 dark:bg-stone-900 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-700 dark:text-stone-300 flex items-center gap-1 border border-warm-200 dark:border-stone-800 transition-all hover:scale-102 cursor-pointer"
+            title={`Ver reporte detallado de Google Weather para ${getDynamicWeather().city}`}
+          >
             <span className="text-xs">{getDynamicWeather().icon}</span>
-            <span className="truncate max-w-[125px] sm:max-w-none">{getDynamicWeather().city} • {getDynamicWeather().temp}</span>
-          </div>
+            <span className="truncate max-w-[125px] sm:max-w-none font-bold">{getDynamicWeather().city} • {getDynamicWeather().temp}</span>
+          </button>
 
           <button
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -1559,7 +1830,7 @@ export default function App() {
                     <div className="space-y-1 mb-4">
                       <div className="flex justify-between text-xs font-mono text-stone-500">
                         <span>Lunes a Domingo</span>
-                        <span>{totalCompletedTasks} de {tasks.length} completadas</span>
+                        <span>{totalCompletedTasks} de {activeWeekTasks.length} completadas</span>
                       </div>
                       <div className="w-full h-2.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
                         <div
@@ -1577,36 +1848,40 @@ export default function App() {
                           <p className="text-xs text-stone-400">🎉 ¡Felicidades! No hay tareas pendientes de esta semana.</p>
                         </div>
                       ) : (
-                        tasks.filter(t => !t.completed && (t.weekOffset || 0) === 0).slice(0, 3).map((item) => (
-                          <div
-                            key={item.id}
-                            onClick={() => claimPointsTask(item.id, item.responsable === 'Él' ? 'partner1' : item.responsable === 'Ella' ? 'partner2' : 'both')}
-                            className="flex items-center justify-between p-2.5 rounded-xl border border-warm-100 dark:border-stone-850/50 bg-stone-50/50 dark:bg-stone-900/40 hover:bg-amber-50/40 dark:hover:bg-amber-500/10 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                item.completed
-                                  ? 'bg-amber-950 text-white border-amber-955'
-                                  : 'border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900'
+                        [...tasks]
+                          .filter(t => !t.completed && (t.weekOffset || 0) === 0)
+                          .sort((a, b) => (a.suggestedTime || '23:59').localeCompare(b.suggestedTime || '23:59'))
+                          .slice(0, 3)
+                          .map((item) => (
+                            <div
+                              key={item.id}
+                              onClick={() => claimPointsTask(item.id, item.responsable === 'Él' ? 'partner1' : item.responsable === 'Ella' ? 'partner2' : 'both')}
+                              className="flex items-center justify-between p-2.5 rounded-xl border border-warm-100 dark:border-stone-850/50 bg-stone-50/50 dark:bg-stone-900/40 hover:bg-amber-50/40 dark:hover:bg-amber-500/10 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                  item.completed
+                                    ? 'bg-amber-950 text-white border-amber-955'
+                                    : 'border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900'
+                                }`}>
+                                  {item.completed && <CheckCircle className="h-3.5 w-3.5 fill-white text-amber-950" />}
+                                </div>
+                                <div>
+                                  <p className={`text-xs font-medium ${item.completed ? 'line-through text-stone-400' : ''}`}>
+                                    {item.name}
+                                  </p>
+                                  <p className="text-[9px] text-stone-400 font-mono">
+                                    Resp: {item.responsable} • +{item.scorePoints} Pts • {item.suggestedTime} hrs
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`text-[9px] inline-block px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                item.priority === 'Alta' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400' : 'bg-stone-100 text-stone-700'
                               }`}>
-                                {item.completed && <CheckCircle className="h-3.5 w-3.5 fill-white text-amber-950" />}
-                              </div>
-                              <div>
-                                <p className={`text-xs font-medium ${item.completed ? 'line-through text-stone-400' : ''}`}>
-                                  {item.name}
-                                </p>
-                                <p className="text-[9px] text-stone-400 font-mono">
-                                  Resp: {item.responsable} • +{item.scorePoints} Pts • {item.suggestedTime} hrs
-                                </p>
-                              </div>
+                                {item.priority}
+                              </span>
                             </div>
-                            <span className={`text-[9px] inline-block px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                              item.priority === 'Alta' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400' : 'bg-stone-100 text-stone-700'
-                            }`}>
-                              {item.priority}
-                            </span>
-                          </div>
-                        ))
+                          ))
                       )}
                     </div>
                   </div>
@@ -1938,14 +2213,26 @@ export default function App() {
                                   📅 {apt.date} • ⏱️ {apt.time || '19:00'}
                                 </p>
                                 {apt.location && (
-                                  <p className="text-[9px] text-amber-855 dark:text-amber-500 font-mono italic">
+                                  <p className="text-[9px] text-amber-800 dark:text-amber-500 font-mono italic">
                                     📍 {apt.location}
                                   </p>
                                 )}
                               </div>
                               
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingAppointment(apt);
+                                  }}
+                                  className="p-1 px-1.5 rounded text-[9px] font-bold border border-warm-200 dark:border-stone-750 text-stone-550 hover:text-amber-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 cursor-pointer flex items-center gap-0.5"
+                                  title="Editar cita"
+                                >
+                                  <Edit2 className="h-2.5 w-2.5" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, completed: !a.completed } : a));
@@ -1959,11 +2246,12 @@ export default function App() {
                                   {apt.completed ? '✓' : 'Listo'}
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setAppointments(prev => prev.filter(a => a.id !== apt.id));
                                   }}
-                                  className="p-1 text-stone-400 hover:text-red-600 transition-colors cursor-pointer"
+                                  className="p-1 text-stone-400 hover:text-red-655 transition-colors cursor-pointer"
                                   title="Quitar"
                                 >
                                   ✕
@@ -2472,6 +2760,7 @@ export default function App() {
                         </h4>
                       </div>
                       <button
+                        type="button"
                         onClick={() => {
                           setNewTask(p => ({ ...p, dayOfWeek: selectedChoreDay }));
                           setShowAddTaskModal(true);
@@ -2483,87 +2772,105 @@ export default function App() {
                     </div>
 
                     <div className="space-y-3">
-                      {tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay && (t.weekOffset || 0) === selectedWeekOffset).length === 0 ? (
-                        <div className="p-10 text-center border border-dashed border-warm-250 dark:border-stone-800 rounded-2xl bg-stone-50/20 dark:bg-stone-900/10">
+                      {[...tasks]
+                        .filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay && (t.weekOffset || 0) === selectedWeekOffset)
+                        .sort((a, b) => (a.suggestedTime || '23:59').localeCompare(b.suggestedTime || '23:59'))
+                        .length === 0 ? (
+                        <div className="p-10 text-center border border-dashed border-warm-250 dark:border-stone-800 rounded-2xl bg-stone-55/20 dark:bg-stone-900/10">
                           <p className="text-xs text-stone-400 italic">No hay tareas pendientes ni programadas para el {selectedChoreDay} de esta semana. ¡Súper limpio! ✨</p>
                         </div>
                       ) : (
-                        tasks.filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay && (t.weekOffset || 0) === selectedWeekOffset).map((task) => (
-                        <div
-                          key={task.id}
-                          className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                            task.completed
-                              ? 'bg-stone-50/50 dark:bg-stone-900/20 border-warm-150 dark:border-stone-900'
-                              : 'bg-white dark:bg-stone-900 border-warm-200 dark:border-stone-800 shadow-sm hover:border-amber-900/40'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
+                        [...tasks]
+                          .filter(t => (t.dayOfWeek || 'Lunes') === selectedChoreDay && (t.weekOffset || 0) === selectedWeekOffset)
+                          .sort((a, b) => (a.suggestedTime || '23:59').localeCompare(b.suggestedTime || '23:59'))
+                          .map((task) => (
                             <div
-                              onClick={() => claimPointsTask(task.id, task.responsable === 'Él' ? 'partner1' : task.responsable === 'Ella' ? 'partner2' : 'both')}
-                              className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors mt-0.5 ${
+                              key={task.id}
+                              className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                                 task.completed
-                                  ? 'bg-amber-900 text-stone-100 border-amber-955'
-                                  : 'border-stone-300 dark:border-stone-700 hover:border-amber-900 bg-white dark:bg-stone-900'
+                                  ? 'bg-stone-50/50 dark:bg-stone-900/20 border-warm-150 dark:border-stone-900'
+                                  : 'bg-white dark:bg-stone-900 border-warm-200 dark:border-stone-800 shadow-sm hover:border-amber-900/40'
                               }`}
                             >
-                              {task.completed && <CheckCircle className="h-4.5 w-4.5 fill-current" />}
-                            </div>
-                            
-                            <div>
-                              <h4 className={`text-sm font-semibold truncate max-w-[280px] sm:max-w-[360px] ${
-                                task.completed ? 'line-through text-stone-400' : 'text-stone-800 dark:text-white'
-                              }`}>
-                                {task.name}
-                              </h4>
-                              <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] font-mono text-stone-500">
-                                <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                  🔁 {task.frequency}
-                                </span>
-                                <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                  👤 <strong className="text-amber-800 dark:text-amber-500 font-bold">{task.responsable}</strong>
-                                </span>
-                                <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                  ⏱️ {task.duration}
-                                </span>
-                                {task.suggestedTime && (
-                                  <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
-                                    🔔 {task.suggestedTime}
-                                  </span>
-                                )}
-                                <span className="bg-amber-50 dark:bg-stone-950 text-amber-905 dark:text-amber-500 px-2 py-0.5 rounded font-bold">
-                                  +{task.scorePoints || 20} Pts
-                                </span>
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div
+                                  onClick={() => claimPointsTask(task.id, task.responsable === 'Él' ? 'partner1' : task.responsable === 'Ella' ? 'partner2' : 'both')}
+                                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors mt-0.5 ${
+                                    task.completed
+                                      ? 'bg-amber-900 text-stone-100 border-amber-955'
+                                      : 'border-stone-300 dark:border-stone-700 hover:border-amber-900 bg-white dark:bg-stone-900'
+                                  }`}
+                                >
+                                  {task.completed && <CheckCircle className="h-4.5 w-4.5 fill-current" />}
+                                </div>
+                                
+                                <div 
+                                  onClick={() => setEditingTask(task)}
+                                  className="flex-1 min-w-0 cursor-pointer group"
+                                  title="Haga clic para editar o reagendar"
+                                >
+                                  <h4 className={`text-sm font-semibold truncate group-hover:text-amber-805 dark:group-hover:text-amber-500 transition-colors ${
+                                    task.completed ? 'line-through text-stone-400' : 'text-stone-800 dark:text-white'
+                                  }`}>
+                                    {task.name} <span className="opacity-0 group-hover:opacity-100 text-[10px] ml-1.5 font-normal text-stone-400">✎</span>
+                                  </h4>
+                                  <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] font-mono text-stone-500">
+                                    <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                      🔁 {task.frequency}
+                                    </span>
+                                    <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                      👤 <strong className="text-amber-800 dark:text-amber-500 font-bold">{task.responsable}</strong>
+                                    </span>
+                                    <span className="bg-stone-105 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                      ⏱️ {task.duration}
+                                    </span>
+                                    {task.suggestedTime && (
+                                      <span className="bg-stone-101 dark:bg-stone-800 px-2 py-0.5 rounded">
+                                        🔔 {task.suggestedTime} hrs
+                                      </span>
+                                    )}
+                                    <span className="bg-amber-50 dark:bg-stone-950 text-amber-905 dark:text-amber-500 px-2 py-0.5 rounded font-bold">
+                                      +{task.scorePoints || 20} Pts
+                                    </span>
+                                  </div>
+                                  {task.completed && task.completedAt && (
+                                    <p className="text-[9px] text-green-605 dark:text-green-550 font-mono mt-1">
+                                      ✓ Completada hoy por {task.responsable}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              {task.completed && task.completedAt && (
-                                <p className="text-[9px] text-green-605 dark:text-green-550 font-mono mt-1">
-                                  ✓ Completada hoy por {task.responsable}
-                                </p>
-                              )}
-                            </div>
-                          </div>
 
-                          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                            <button
-                              onClick={() => {
-                                alert(`Se ha reajustado el recordatorio de "${task.name}" para mañana.`);
-                                setReminders(prev => [`La tarea "${task.name}" se reagendó exitosamente para mañana.`, ...prev]);
-                              }}
-                              className="p-1 px-2.5 rounded-lg border border-warm-200 dark:border-stone-750 text-[10px] font-semibold text-stone-605 dark:text-stone-300 hover:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
-                            >
-                              Reagendar
-                            </button>
-                            <button
-                              onClick={() => {
-                                setTasks(prev => prev.filter(t => t.id !== task.id));
-                              }}
-                              className="p-1.5 rounded-lg border border-red-200/50 hover:bg-red-50 hover:border-red-500 text-stone-400 hover:text-red-650 transition-colors cursor-pointer"
-                              title="Quitar"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )))}
+                              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingTask(task)}
+                                  className="p-1 px-1.5 rounded-lg border border-warm-200 dark:border-stone-750 text-[10px] text-stone-400 hover:text-amber-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer flex items-center gap-1 font-semibold"
+                                  title="Editar detalles de la tarea"
+                                >
+                                  <Edit2 className="h-3 w-3" /> Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingTask(task)}
+                                  className="p-1 px-2.5 rounded-lg border border-warm-200 dark:border-stone-750 text-[10px] font-semibold text-stone-605 dark:text-stone-300 hover:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                                >
+                                  Reagendar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTasks(prev => prev.filter(t => t.id !== task.id));
+                                  }}
+                                  className="p-1.5 rounded-lg border border-red-200/50 hover:bg-red-50 hover:border-red-500 text-stone-400 hover:text-red-655 transition-colors cursor-pointer"
+                                  title="Quitar"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3485,6 +3792,259 @@ export default function App() {
           )}
 
           {/* ==========================================
+              VIEW 4.8: LA PIZARRA COZY DE NOTAS Y RECORDATORIOS
+              ========================================== */}
+          {activeTab === 'pizarra' && (
+            <div className="space-y-6 animate-fadeIn max-w-4xl mx-auto">
+              
+              <div className="border-b border-warm-150 dark:border-warm-850 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs text-amber-800 dark:text-amber-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
+                    <MessageSquare className="h-4 w-4 text-amber-700 animate-pulse" /> Comunicación Diaria Cozy
+                  </span>
+                  <h2 className="text-3xl font-serif font-bold text-stone-850 dark:text-white mt-1">Nuestra Pizarra de Mensajes</h2>
+                  <p className="text-xs text-stone-500 mt-1">Déjanse notas hermosas, tareas improvisadas o recordatorios rápidos (ej: "Descongelar la carne", "Te amo" o "Comprar pan"). ✨</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 bg-amber-50 dark:bg-stone-900 border border-warm-250 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-lg">
+                     📌 {chalkboardNotes.length} Notas Colgadas
+                  </span>
+                </div>
+              </div>
+
+              {/* TWO PANEL LAYOUT: Form on Left, Blackboard/Corkboard on Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* 1. LEFT PANEL: Note pin generator form */}
+                <div className="lg:col-span-4 bg-white/70 dark:bg-stone-900/40 rounded-2xl p-5 border border-warm-200 dark:border-stone-800 space-y-4 shadow-xs h-fit">
+                  <h3 className="font-serif font-bold text-base text-stone-800 dark:text-white flex items-center gap-1.5 border-b pb-2">
+                    <span>✏️</span> Escribir una Nota
+                  </h3>
+                  
+                  <div className="space-y-3.5 text-xs">
+                    {/* Text Field */}
+                    <div>
+                      <label className="block mb-1 font-semibold text-stone-600 dark:text-stone-350">¿Qué quieres recordar o decir?</label>
+                      <textarea
+                        value={newNoteInput}
+                        onChange={(e) => setNewNoteInput(e.target.value)}
+                        placeholder="Ej: Recuerda descongelar la carne para el almuerzo... o ¡Lindo día! ❤️"
+                        className="w-full h-24 px-3 py-2 border border-warm-250 dark:border-stone-750 rounded-xl bg-stone-50/50 dark:bg-stone-900 focus:outline-none focus:ring-1 focus:ring-amber-500 placeholder:text-stone-400 font-sans"
+                        maxLength={180}
+                      />
+                      <div className="flex justify-end mt-1 font-mono text-[9px] text-stone-400">
+                        {newNoteInput.length}/180 caracteres
+                      </div>
+                    </div>
+
+                    {/* Author selection */}
+                    <div>
+                      <label className="block mb-1 font-semibold text-stone-600 dark:text-stone-350">De parte de:</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteWriter('Eve')}
+                          className={`py-2 rounded-xl border text-center font-bold font-serif transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                            newNoteWriter === 'Eve'
+                              ? 'bg-amber-900 text-white border-amber-900'
+                              : 'bg-stone-50/50 dark:bg-stone-850 hover:bg-stone-100 border-warm-200 dark:border-stone-750 text-stone-600 dark:text-stone-300'
+                          }`}
+                        >
+                          <span>👩👗</span> Eve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteWriter('Manu')}
+                          className={`py-2 rounded-xl border text-center font-bold font-serif transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                            newNoteWriter === 'Manu'
+                              ? 'bg-amber-900 text-white border-amber-900'
+                              : 'bg-stone-50/50 dark:bg-stone-850 hover:bg-stone-100 border-warm-200 dark:border-stone-750 text-stone-600 dark:text-stone-300'
+                          }`}
+                        >
+                          <span>👨👔</span> Manu
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pastel Post-it Color selection */}
+                    <div>
+                      <label className="block mb-1.5 font-semibold text-stone-600 dark:text-stone-350">Estilo del Post-it:</label>
+                      <div className="flex gap-2">
+                        {/* 1. Yellow Sticky */}
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteColor('yellow')}
+                          className={`w-7 h-7 rounded-lg border-2 bg-amber-100 border-amber-400 cursor-pointer ${
+                            newNoteColor === 'yellow' ? 'scale-115 ring-2 ring-amber-650' : 'opacity-80'
+                          }`}
+                          title="Amarillo Clásico"
+                        />
+                        {/* 2. Pink Sticky */}
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteColor('pink')}
+                          className={`w-7 h-7 rounded-lg border-2 bg-rose-100 border-rose-400 cursor-pointer ${
+                            newNoteColor === 'pink' ? 'scale-115 ring-2 ring-rose-650' : 'opacity-80'
+                          }`}
+                          title="Rosa Romántico"
+                        />
+                        {/* 3. Green Sticky */}
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteColor('green')}
+                          className={`w-7 h-7 rounded-lg border-2 bg-emerald-100 border-emerald-400 cursor-pointer ${
+                            newNoteColor === 'green' ? 'scale-115 ring-2 ring-emerald-650' : 'opacity-80'
+                          }`}
+                          title="Verde Fresco"
+                        />
+                        {/* 4. Blue Sticky */}
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteColor('blue')}
+                          className={`w-7 h-7 rounded-lg border-2 bg-sky-100 border-sky-400 cursor-pointer ${
+                            newNoteColor === 'blue' ? 'scale-115 ring-2 ring-sky-650' : 'opacity-80'
+                          }`}
+                          title="Azul Tranquilo"
+                        />
+                        {/* 5. Purple Sticky */}
+                        <button
+                          type="button"
+                          onClick={() => setNewNoteColor('purple')}
+                          className={`w-7 h-7 rounded-lg border-2 bg-purple-100 border-purple-400 cursor-pointer ${
+                            newNoteColor === 'purple' ? 'scale-115 ring-2 ring-purple-650' : 'opacity-80'
+                          }`}
+                          title="Púrpura Mágico"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Submit pin button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newNoteInput.trim()) {
+                          alert("Por favor escriba primero el mensaje a colgar de la pizarra.");
+                          return;
+                        }
+                        addChalkboardNote(newNoteInput, newNoteWriter, newNoteColor);
+                        setNewNoteInput('');
+                      }}
+                      className="w-full py-2.5 bg-amber-905 hover:bg-stone-850 text-white rounded-xl font-bold cursor-pointer transition-transform active:scale-95 text-center flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <span>📌 Pinchar Post-it</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. RIGHT PANEL: Visual Blackboard container with woody frame */}
+                <div className="lg:col-span-8">
+                  {/* Outer wooden board style */}
+                  <div className="border-[14px] border-amber-950 dark:border-amber-955 rounded-3xl bg-stone-900 dark:bg-stone-950 shadow-2xl relative p-5 min-h-[480px] flex flex-col justify-between overflow-hidden">
+                    
+                    {/* Blackboard background grid lines simulating chalkboard look */}
+                    <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none opacity-40 z-0" />
+                    
+                    {/* Inner Content Block */}
+                    <div className="relative z-10 flex-1">
+                      {/* Stylized blackboard chalk heading */}
+                      <div className="border-b border-white/10 pb-2.5 mb-4 flex justify-between items-center text-stone-400">
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-stone-200 flex items-center gap-1">
+                          <span>📝</span> Pizarra de Tareas e Ideas Improvisadas
+                        </span>
+                        <div className="text-[10px] font-mono text-stone-400 italic">Nido Board v1.2</div>
+                      </div>
+
+                      {chalkboardNotes.length === 0 ? (
+                        <div className="py-24 px-10 text-center flex flex-col items-center justify-center space-y-3">
+                          <span className="text-4xl animate-bounce">🎈</span>
+                          <p className="font-serif italic text-sm text-stone-300">¡Nuestra pizarra está libre y limpia!</p>
+                          <p className="text-xs text-stone-400 max-w-sm">Escriban qué necesitan recordar, bromas, o lindos mensajes cariñosos en el panel izquierdo para pegarlos como Post-its aquí.</p>
+                        </div>
+                      ) : (
+                        /* Notes Grid layout */
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {chalkboardNotes.map((note, index) => {
+                            // index-based subtle rotation to feel realistic and organic
+                            const rotateClass = index % 4 === 0 
+                              ? 'rotate-1' 
+                              : index % 4 === 1 
+                              ? '-rotate-1' 
+                              : index % 4 === 2 
+                              ? 'rotate-2' 
+                              : '-rotate-2';
+
+                            // Color map dictionary lookup
+                            const colorClassMap: Record<string, string> = {
+                              yellow: 'bg-amber-100 border-amber-250 dark:bg-amber-950/40 dark:border-amber-900 text-amber-950 dark:text-amber-200',
+                              pink: 'bg-rose-100 border-rose-250 dark:bg-rose-950/40 dark:border-rose-900 text-rose-950 dark:text-rose-250',
+                              green: 'bg-emerald-100 border-emerald-250 dark:bg-emerald-950/40 dark:border-emerald-900 text-emerald-950 dark:text-emerald-250',
+                              blue: 'bg-sky-100 border-sky-250 dark:bg-sky-950/40 dark:border-sky-900 text-sky-950 dark:text-sky-200',
+                              purple: 'bg-purple-100 border-purple-250 dark:bg-purple-950/40 dark:border-purple-900 text-purple-950 dark:text-purple-250',
+                            };
+                            const computedColor = colorClassMap[note.color] || note.color;
+
+                            return (
+                              <div
+                                key={note.id}
+                                className={`p-4 rounded-lg relative border shadow-md hover:shadow-xl hover:scale-102 transition-all duration-300 flex flex-col justify-between gap-3 min-h-[140px] ${computedColor} ${rotateClass}`}
+                              >
+                                {/* Pin visual indicator header */}
+                                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-red-600 border border-black/25 shadow-xs z-10" />
+                                
+                                {/* Text Body */}
+                                <div className="pt-2">
+                                  <p className="text-xs font-serif leading-relaxed whitespace-pre-wrap break-words">
+                                    {note.text}
+                                  </p>
+                                </div>
+
+                                {/* Footer writer sign and timestamp control */}
+                                <div className="flex items-center justify-between border-t border-black/10 dark:border-white/15 pt-2.5 mt-2 text-[10px] font-medium">
+                                  <div className="flex items-center gap-1">
+                                    <span>{note.writer === 'Eve' ? '👩' : '👨'}</span>
+                                    <span className="font-bold underline">{note.writer}</span>
+                                    <span className="text-stone-400">• {new Date(note.createdAt).toLocaleDateString('es-SV', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '')}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteChalkboardNote(note.id)}
+                                    className="p-1 rounded bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 hover:border-black/20 text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                                    title="Des-anclar post-it (Completado / Borrar)"
+                                  >
+                                    🗑️ Borrar
+                                  </button>
+                                </div>
+
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Chalk writing visual line footer */}
+                    <div className="relative z-10 border-t border-white/5 pt-3.5 mt-6 text-center text-[10px] font-mono text-stone-500 italic flex justify-between items-center">
+                      <span>☘️ "Cuidemos los pequeños detalles con amor cada día"</span>
+                      <button
+                        onClick={() => {
+                          if (confirm("¿Están seguros de querer vaciar toda la pizarra?")) {
+                            setChalkboardNotes([]);
+                          }
+                        }}
+                        className="text-[9px] underline hover:no-underline text-red-400 hover:text-red-300 font-bold bg-transparent border-0 cursor-pointer"
+                      >
+                        Limpiar Pizarra Completa
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* ==========================================
               VIEW 5: DETALLED COUPLE PROFILE SYNC SETTINGS
               ========================================== */}
           {activeTab === 'perfil' && (
@@ -3639,11 +4199,94 @@ export default function App() {
 
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-amber-900 border border-amber-950 text-white rounded-xl font-semibold text-xs transition-opacity hover:opacity-90 cursor-pointer"
+                    className="w-full py-2.5 bg-amber-900 border border-amber-955 text-white rounded-xl font-semibold text-xs transition-opacity hover:opacity-90 cursor-pointer"
                   >
                     Guardar Cambios de Perfil de Pareja
                   </button>
                 </form>
+
+                {/* BACKUP & MANUAL SYNC PANEL */}
+                <div className="mt-8 pt-6 border-t border-warm-200 dark:border-stone-800 space-y-4">
+                  <h4 className="font-serif font-bold text-sm text-stone-850 dark:text-neutral-100 flex items-center gap-1.5">
+                    ⚙️ Copia de Seguridad y Sincronización
+                  </h4>
+                  <p className="text-[11px] text-stone-500 leading-relaxed">
+                    Si van a cambiar de dispositivo o quieren guardar una copia de respaldo de todas sus citas, tareas, despensa, notas de pizarra y perfiles, guarden el archivo de copia de seguridad localmente.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {/* Export / Sincronización manual */}
+                    <div className="space-y-2 bg-stone-50/60 dark:bg-stone-950/20 p-3.5 rounded-xl border border-warm-150 dark:border-stone-850">
+                      <h5 className="font-semibold text-xs text-stone-800 dark:text-neutral-200 flex items-center gap-1">
+                        📦 Respaldar / Sincronizar
+                      </h5>
+                      <p className="text-[10px] text-stone-500">
+                        Exporta tus datos o haz una sincronización manual inmediata con nuestro servidor en la nube.
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleExportBackup}
+                          className="px-3 py-1.5 bg-stone-850 hover:bg-stone-700 text-white text-[10px] rounded-lg font-bold transition-all cursor-pointer shadow-xs"
+                        >
+                          📥 Exportar JSON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleManualSync();
+                            alert("¡Sincronización manual ejecutada con éxito! Todos los cambios ahora son idénticos entre Manu y Eve.");
+                          }}
+                          className="px-3 py-1.5 bg-amber-900 hover:bg-stone-850 text-white text-[10px] rounded-lg font-bold transition-all cursor-pointer shadow-xs"
+                        >
+                          🔄 Sincronizar Ahora
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Import / Restaurar */}
+                    <div className="space-y-2 bg-stone-50/60 dark:bg-stone-950/20 p-3.5 rounded-xl border border-warm-150 dark:border-stone-850">
+                      <h5 className="font-semibold text-xs text-stone-850 dark:text-neutral-200 flex items-center gap-1">
+                        📤 Importar Copia de Seguridad
+                      </h5>
+                      <p className="text-[10px] text-stone-500">
+                        Selecciona un archivo JSON exportado previamente y cárgalo para reemplazar los datos actuales en el sistema.
+                      </p>
+                      <div className="pt-1">
+                        <label className="block">
+                          <span className="sr-only">Seleccionar copia de seguridad</span>
+                          <input
+                            type="file"
+                            accept=".json"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                  try {
+                                    if (event.target?.result && typeof event.target.result === 'string') {
+                                      handleImportBackup(event.target.result);
+                                      alert("¡Copia de seguridad importada con éxito! Tu panel se ha actualizado.");
+                                    }
+                                  } catch (err) {
+                                    alert("El archivo de copia de seguridad no es válido.");
+                                  }
+                                };
+                                reader.readAsText(file);
+                              }
+                            }}
+                            className="block w-full text-[10px] text-stone-550
+                              file:mr-3 file:py-1 file:px-2.5
+                              file:rounded-md file:border-0
+                              file:text-[10px] file:font-semibold
+                              file:bg-amber-100/65 file:text-amber-900
+                              hover:file:bg-amber-100 cursor-pointer"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
               </div>
 
@@ -3734,7 +4377,12 @@ export default function App() {
             className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-2xl max-w-sm w-full space-y-4"
           >
             <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="font-serif font-bold text-base">Crear Tarea del Hogar</h3>
+              <div>
+                <h3 className="font-serif font-bold text-base">Crear Tarea del Hogar</h3>
+                <p className="text-[10px] text-amber-805 dark:text-amber-500 font-mono font-bold">
+                  {selectedWeekOffset === 0 ? 'Para esta semana' : selectedWeekOffset === 1 ? 'Para la próxima semana' : `Para la semana (+${selectedWeekOffset})`}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddTaskModal(false)}
@@ -3847,6 +4495,280 @@ export default function App() {
         </div>
       )}
 
+      {/* TASK EDITING & RESCHEDULING MODAL */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleUpdateTask}
+            className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-2xl max-w-sm w-full space-y-4 animate-fadeIn"
+          >
+            <div className="flex justify-between items-center border-b pb-2">
+              <div>
+                <h3 className="font-serif font-bold text-base">Editar / Reagendar Tarea</h3>
+                <p className="text-[10px] text-amber-800 dark:text-amber-500 font-mono font-bold tracking-tight">
+                  ID de Tarea: #{editingTask.id.slice(0, 8)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTask(null)}
+                className="text-stone-400 hover:text-stone-900 p-1 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Nombre de la tarea</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Lavar platos o Cocinar cena"
+                  value={editingTask.name || ''}
+                  onChange={(e) => setEditingTask(p => ({ ...p!, name: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-xl dark:bg-stone-850 dark:border-stone-750 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Frecuencia</label>
+                  <select
+                    value={editingTask.frequency || 'Semanal'}
+                    onChange={(e) => setEditingTask(p => ({ ...p!, frequency: e.target.value as any }))}
+                    className="w-full px-2.5 py-1.5 border rounded-lg dark:bg-stone-850 dark:border-stone-750"
+                  >
+                    <option value="Diaria">Diaria</option>
+                    <option value="Semanal">Semanal</option>
+                    <option value="Mensual">Mensual</option>
+                    <option value="Personalizada">Personalizada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Prioridad</label>
+                  <select
+                    value={editingTask.priority || 'Media'}
+                    onChange={(e) => setEditingTask(p => ({ ...p!, priority: e.target.value as any }))}
+                    className="w-full px-2.5 py-1.5 border rounded-lg dark:bg-stone-850 dark:border-stone-750"
+                  >
+                    <option value="Alta">Alta (+30 pts)</option>
+                    <option value="Media">Media (+20 pts)</option>
+                    <option value="Baja">Baja (+10 pts)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Responsable</label>
+                  <select
+                    value={editingTask.responsable || 'Ambos'}
+                    onChange={(e) => setEditingTask(p => ({ ...p!, responsable: e.target.value as any }))}
+                    className="w-full px-2.5 py-1.5 border rounded-lg dark:bg-stone-850 dark:border-stone-750"
+                  >
+                    <option value="Él">Él ({profile.partner1})</option>
+                    <option value="Ella">Ella ({profile.partner2})</option>
+                    <option value="Ambos">Ambos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Duración estimada</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 15 min"
+                    value={editingTask.duration || ''}
+                    onChange={(e) => setEditingTask(p => ({ ...p!, duration: e.target.value }))}
+                    className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750"
+                  />
+                </div>
+              </div>
+
+              {/* RE-SCHEDULE SECTION FOR DAY & WEEK-OFFSET */}
+              <div className="bg-amber-50/50 dark:bg-stone-955/40 p-3 rounded-xl border border-warm-150 dark:border-stone-800 space-y-2">
+                <p className="text-[10px] uppercase font-sans font-bold tracking-wider text-amber-800 dark:text-amber-500">
+                  📅 Reagendar Fecha de Tarea
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] mb-0.5 font-semibold text-stone-500">Día de la semana</label>
+                    <select
+                      value={editingTask.dayOfWeek || 'Lunes'}
+                      onChange={(e) => setEditingTask(p => ({ ...p!, dayOfWeek: e.target.value }))}
+                      className="w-full px-2 py-1 text-[11px] border rounded-lg dark:bg-stone-850 dark:border-stone-750"
+                    >
+                      <option value="Lunes">Lunes</option>
+                      <option value="Martes">Martes</option>
+                      <option value="Miércoles">Miércoles</option>
+                      <option value="Jueves">Jueves</option>
+                      <option value="Viernes">Viernes</option>
+                      <option value="Sábado">Sábado</option>
+                      <option value="Domingo">Domingo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] mb-0.5 font-semibold text-stone-500">Cambiar de semana</label>
+                    <select
+                      value={editingTask.weekOffset || 0}
+                      onChange={(e) => setEditingTask(p => ({ ...p!, weekOffset: Number(e.target.value) }))}
+                      className="w-full px-2 py-1 text-[11px] border rounded-lg dark:bg-stone-850 dark:border-stone-750 font-sans"
+                    >
+                      <option value={0}>Esta semana</option>
+                      <option value={1}>Próxima semana</option>
+                      <option value={2}>En 2 semanas (+2)</option>
+                      <option value={3}>En 3 semanas (+3)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Hora sugerida (Orden del tablero)</label>
+                <input
+                  type="text"
+                  placeholder="Ej: 19:30 o 08:00"
+                  value={editingTask.suggestedTime || ''}
+                  onChange={(e) => setEditingTask(p => ({ ...p!, suggestedTime: e.target.value }))}
+                  className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                className="flex-1 py-2 bg-amber-900 hover:bg-stone-850 text-white rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Guardar Cambios
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingTask(null)}
+                className="p-2 border border-warm-250 text-stone-600 dark:text-stone-300 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* APPOINTMENT EDITING MODAL */}
+      {editingAppointment && (
+        <div className="fixed inset-0 bg-stone-955/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleUpdateAppointment}
+            className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-2xl max-w-sm w-full space-y-4 animate-fadeIn"
+          >
+            <div className="flex justify-between items-center border-b pb-2">
+              <div>
+                <h3 className="font-serif font-bold text-base">Editar Cita de Pareja</h3>
+                <p className="text-[10px] text-amber-800 dark:text-amber-500 font-mono font-bold tracking-tight">
+                  Cita ID: #{editingAppointment.id.slice(0, 8)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingAppointment(null)}
+                className="text-stone-400 hover:text-stone-900 p-1 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Título de la Cita</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Picnic en la azotea o Cena romántica"
+                  value={editingAppointment.title || ''}
+                  onChange={(e) => setEditingAppointment(p => ({ ...p!, title: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-xl dark:bg-stone-850 dark:border-stone-750 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Fecha</label>
+                  <input
+                    type="date"
+                    required
+                    value={editingAppointment.date || ''}
+                    onChange={(e) => setEditingAppointment(p => ({ ...p!, date: e.target.value }))}
+                    className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750 text-stone-805 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Hora</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 19:30"
+                    value={editingAppointment.time || ''}
+                    onChange={(e) => setEditingAppointment(p => ({ ...p!, time: e.target.value }))}
+                    className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Mood sugerido</label>
+                  <select
+                    value={editingAppointment.mood || 'Romántica'}
+                    onChange={(e) => setEditingAppointment(p => ({ ...p!, mood: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 border rounded-lg dark:bg-stone-850 dark:border-stone-750"
+                  >
+                    <option value="Romántica">Romántica</option>
+                    <option value="Love">Love</option>
+                    <option value="Divertida">Divertida</option>
+                    <option value="Relajante">Relajante</option>
+                    <option value="Gaming Night">Gaming Night</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Ubicación</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: San Salvador o En Casa"
+                    value={editingAppointment.location || ''}
+                    onChange={(e) => setEditingAppointment(p => ({ ...p!, location: e.target.value }))}
+                    className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 font-semibold text-stone-650 dark:text-stone-300">Notas / Detalles / Ideas</label>
+                <textarea
+                  placeholder="Escribe alguna nota o ingrediente que preparar..."
+                  value={editingAppointment.notes || ''}
+                  onChange={(e) => setEditingAppointment(p => ({ ...p!, notes: e.target.value }))}
+                  className="w-full px-3 py-1.5 border rounded-xl dark:bg-stone-850 dark:border-stone-750 h-16 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                className="flex-1 py-2 bg-amber-900 hover:bg-stone-850 text-white rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Guardar Cita
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingAppointment(null)}
+                className="p-2 border border-warm-250 text-stone-600 dark:text-stone-300 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* 3. SCHEDULING DATE APPOINTMENT DIALOG MODAL */}
       {showAddAppointmentModal && (
         <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3945,6 +4867,165 @@ export default function App() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Google Weather High-Fidelity Modal */}
+      {showWeatherModal && (
+        <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-3xl max-w-md w-full shadow-2xl relative space-y-6 text-stone-800 dark:text-stone-100 max-h-[90vh] overflow-y-auto scrollbar-none animate-fadeIn">
+            
+            {/* Header / Search bar */}
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-500 font-sans font-bold text-[10px] uppercase tracking-widest">
+                  <span>⛅</span>
+                  <span>Google Weather Integrado</span>
+                </div>
+                <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Clima en tiempo real</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWeatherModal(false)}
+                className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 flex items-center justify-center text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Location Swapper inside Weather Tool */}
+            <div className="bg-amber-50/50 dark:bg-stone-950/40 p-3.5 rounded-2xl border border-warm-150 dark:border-stone-850/60 space-y-2 text-xs">
+              <span className="block text-[9px] uppercase font-mono font-bold text-stone-400">Cambiar Ubicación Rápida</span>
+              <div className="flex gap-2">
+                <select
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="flex-1 px-2.5 py-1.5 bg-white dark:bg-stone-850 border border-warm-250 dark:border-stone-750 rounded-xl focus:outline-none cursor-pointer"
+                >
+                  <option value="San Salvador">San Salvador (Ciudad)</option>
+                  <option value="Santa Tecla">Santa Tecla</option>
+                  <option value="Antiguo Cuscatlán">Antiguo Cuscatlán</option>
+                  <option value="El Boquerón">El Boquerón / Volcán</option>
+                  <option value="Chalatenango">El Pital / San Ignacio</option>
+                  <option value="La Libertad Playas">La Libertad (Costas)</option>
+                  <option value="Ahuachapán">Ruta de las Flores / Ataco</option>
+                  <option value="Suchitoto">Suchitoto</option>
+                  <option value="Otro">Otro lugar...</option>
+                </select>
+                {selectedCity === 'Otro' && (
+                  <input
+                    type="text"
+                    value={customCity}
+                    onChange={(e) => setCustomCity(e.target.value)}
+                    placeholder="Escriba..."
+                    className="w-1/3 px-2 py-1.5 bg-white dark:bg-stone-850 border border-warm-250 dark:border-stone-750 rounded-xl focus:outline-none"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Precise Weather Panel Hero */}
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-stone-950/30 dark:to-stone-900/50 p-5 rounded-3xl border border-warm-200 dark:border-stone-800 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-sm font-semibold font-serif text-stone-550 dark:text-stone-350">{getDynamicWeather().city}</span>
+                <div className="flex items-baseline gap-1">
+                  <h4 className="text-4xl md:text-5xl font-bold font-sans tracking-tight text-amber-950 dark:text-amber-500">
+                    {getDynamicWeather().temp}
+                  </h4>
+                </div>
+                <p className="text-xs text-stone-600 dark:text-stone-300 font-medium">
+                  {getDynamicWeather().detailCondition}
+                </p>
+              </div>
+              <div className="text-5xl select-none filter drop-shadow-md">
+                {getDynamicWeather().icon}
+              </div>
+            </div>
+
+            {/* Weather Metrics Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-stone-50/60 dark:bg-stone-950/20 p-3 rounded-2xl border border-warm-150 dark:border-stone-850 flex flex-col items-center text-center">
+                <Droplets className="h-4 w-4 text-sky-500 mb-1" />
+                <span className="text-[9px] uppercase font-bold text-stone-400">Humedad</span>
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300 mt-0.5">{getDynamicWeather().humidity}</span>
+              </div>
+              <div className="bg-stone-50/60 dark:bg-stone-950/20 p-3 rounded-2xl border border-warm-150 dark:border-stone-850 flex flex-col items-center text-center">
+                <Wind className="h-4 w-4 text-stone-500 dark:text-stone-400 mb-1" />
+                <span className="text-[9px] uppercase font-bold text-stone-400">Viento</span>
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300 mt-0.5">{getDynamicWeather().wind}</span>
+              </div>
+              <div className="bg-stone-50/60 dark:bg-stone-950/20 p-3 rounded-2xl border border-warm-150 dark:border-stone-850 flex flex-col items-center text-center">
+                <CloudRain className="h-4 w-4 text-indigo-500 mb-1" />
+                <span className="text-[9px] uppercase font-bold text-stone-400">Lluvia</span>
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300 mt-0.5">{getDynamicWeather().precip}</span>
+              </div>
+              <div className="bg-stone-50/60 dark:bg-stone-950/20 p-3 rounded-2xl border border-warm-150 dark:border-stone-850 flex flex-col items-center text-center">
+                <Thermometer className="h-4 w-4 text-emerald-500 mb-1" />
+                <span className="text-[9px] uppercase font-bold text-stone-400">Índice UV</span>
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300 mt-0.5">{getDynamicWeather().uvIndex.split(' ')[0]}</span>
+              </div>
+            </div>
+
+            {/* Hourly Forecast */}
+            <div className="space-y-2">
+              <span className="block text-[10px] uppercase font-mono font-bold text-stone-400 tracking-wider">Pronóstico cada 2 horas</span>
+              <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+                {getDynamicWeather().forecastHours.map((hourObj, idx) => (
+                  <div key={idx} className="flex-1 min-w-[55px] bg-stone-50/40 dark:bg-stone-950/10 p-2 rounded-xl border border-warm-100 dark:border-stone-850/60 flex flex-col items-center text-center">
+                    <span className="text-[9px] text-stone-400 font-mono">{hourObj.hour}</span>
+                    <span className="text-lg my-1 select-none">{hourObj.icon}</span>
+                    <span className="text-xs font-bold">{hourObj.temp}</span>
+                    {hourObj.precip !== '0%' && (
+                      <span className="text-[8px] text-sky-500 font-bold mt-0.5">{hourObj.precip} 🌧️</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 5-Day Forecast */}
+            <div className="space-y-2">
+              <span className="block text-[10px] uppercase font-mono font-bold text-stone-400 tracking-wider">Historial y próximos 5 días</span>
+              <div className="space-y-2 bg-stone-50/30 dark:bg-stone-950/10 p-3 rounded-2xl border border-warm-150 dark:border-stone-850/60">
+                {getDynamicWeather().forecastDays.map((forecast, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-warm-100/40 dark:border-stone-850/40 last:border-0">
+                    <span className="w-10 font-bold text-stone-600 dark:text-stone-300">{forecast.day}</span>
+                    <div className="flex items-center gap-1.5 w-24">
+                      <span className="text-sm select-none">{forecast.icon}</span>
+                      <span className="text-[10px] text-stone-400 truncate">{forecast.condition}</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 text-[11px] font-mono">
+                      <span className="text-stone-450">{forecast.tempMin}</span>
+                      <div className="w-12 h-1.5 bg-stone-150 dark:bg-stone-850 rounded-full overflow-hidden relative">
+                        <div className="absolute left-1/4 right-1/4 top-0 bottom-0 bg-amber-500/60 dark:bg-amber-500/40 rounded-full" />
+                      </div>
+                      <span className="font-bold text-stone-700 dark:text-stone-300">{forecast.tempMax}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer Quick Links */}
+            <div className="flex gap-2.5 pt-2 border-t border-warm-150 dark:border-stone-800">
+              <a
+                href={`https://www.google.com/search?q=weather+${encodeURIComponent(getDynamicWeather().city + ' El Salvador')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 py-2.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-750 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                🔍 Buscar Clima Completo en Google
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowWeatherModal(false)}
+                className="px-4 py-2.5 bg-amber-900 hover:bg-amber-850 text-stone-50 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 
