@@ -1838,53 +1838,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* BANNER DE INICIO DE AVENTURA REAL */}
-              {(!profile.startedAdventure || profile.streakDays === 14 || profile.streakDays === 16 || profile.points1 === 120) && (
-                <div id="banner-onboarding-start" className="bg-gradient-to-r from-amber-50 to-amber-100/90 dark:from-stone-900/60 dark:to-stone-900/30 p-5 rounded-2xl border border-amber-200 dark:border-stone-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm animate-fadeIn">
-                  <div className="flex items-center gap-3.5">
-                    <div className="text-3xl shrink-0 p-2.5 bg-white/85 dark:bg-stone-850 rounded-xl shadow-xs">🚀</div>
-                    <div>
-                      <h4 className="font-serif font-bold text-sm text-amber-950 dark:text-amber-400">¡Bienvenidos al inicio de su aventura real!</h4>
-                      <p className="text-xs text-stone-600 dark:text-stone-300 mt-1 max-w-xl">
-                        Actualmente tienen {profile.streakDays} días de racha de ejemplo acumulados. ¿Les gustaría limpiar los contadores de ejemplo para **Iniciar su Tablero Oficial desde Cero** hoy y registrar su amor en tiempo real?
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfile(prev => ({
-                          ...prev,
-                          points1: 0,
-                          points2: 0,
-                          streakDays: 0,
-                          startedAdventure: true
-                        }));
-                        setTasks(prev => prev.map(t => ({ ...t, completed: false })));
-                        setMenuFeedbackMsg("¡Su cuenta ha sido inicializada! Racha: 0 días, Puntos: 0. ¡Muchos éxitos en su aventura!");
-                        setTimeout(() => setMenuFeedbackMsg(null), 5000);
-                      }}
-                      className="px-4 py-2 bg-amber-900 hover:bg-amber-850 text-stone-50 rounded-xl text-xs font-semibold shadow-xs cursor-pointer active:scale-95 transition-all"
-                    >
-                      ✨ Empezar de Cero (0 días, 0 pts)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfile(prev => ({
-                          ...prev,
-                          startedAdventure: true
-                        }));
-                      }}
-                      className="px-3 py-2 bg-white/60 dark:bg-stone-800 border border-warm-250 dark:border-stone-700 text-stone-600 dark:text-stone-300 rounded-xl text-xs font-medium cursor-pointer"
-                    >
-                      Omitir
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* FIRST ROWS: BENTO GRID DASHBOARD WIDGETS */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
