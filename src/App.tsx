@@ -59,12 +59,6 @@ export default function App() {
           parsed.partner2 = 'Eve';
           dirty = true;
         }
-        if (p1.toLowerCase().includes('manuel') || p2.toLowerCase().includes('gabriela')) {
-          parsed.streakDays = 0;
-          parsed.points1 = 0;
-          parsed.points2 = 0;
-          parsed.startedAdventure = true;
-        }
         if (dirty) {
           localStorage.setItem('nido_profile', JSON.stringify(parsed));
         }
@@ -1058,6 +1052,40 @@ export default function App() {
     setReminders(prev => [`La tarea "${editingTask.name}" ha sido actualizada con éxito. 🌸`, ...prev]);
   };
 
+  // Synchronizes and recalculates points dynamically based on currently completed tasks
+  const handleRecalculatePoints = (silent?: boolean) => {
+    let p1TasksSum = 0;
+    let p2TasksSum = 0;
+    
+    tasks.forEach(t => {
+      if (t.completed) {
+        const pts = t.scorePoints || (t.priority === 'Alta' ? 30 : t.priority === 'Media' ? 20 : 10);
+        const finalSpouse = t.responsable === 'Él' ? 'partner1' : t.responsable === 'Ella' ? 'partner2' : 'both';
+        if (finalSpouse === 'partner1' || finalSpouse === 'both') {
+          p1TasksSum += pts;
+        }
+        if (finalSpouse === 'partner2' || finalSpouse === 'both') {
+          p2TasksSum += pts;
+        }
+      }
+    });
+
+    setProfile(prev => {
+      const updatedProfile = {
+        ...prev,
+        points1: p1TasksSum,
+        points2: p2TasksSum
+      };
+      if (!silent) {
+        setReminders(prevRem => [
+          `Puntos recalculados con éxito ✨. ${prev.partner1}: ${p1TasksSum} pts, ${prev.partner2}: ${p2TasksSum} pts.`,
+          ...prevRem
+        ]);
+      }
+      return updatedProfile;
+    });
+  };
+
   // Handler to save modifications to an existing appointment
   const handleUpdateAppointment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1961,7 +1989,18 @@ export default function App() {
                     </div>
 
                     <div className="border-t border-stone-800 pt-3 space-y-2">
-                      <p className="text-[9px] uppercase tracking-wider font-bold opacity-60">Puntos de Pareja</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[9px] uppercase tracking-wider font-bold opacity-60">Puntos de Pareja</p>
+                        <button
+                          type="button"
+                          onClick={() => handleRecalculatePoints(false)}
+                          className="p-1 hover:bg-white/10 rounded text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1 text-[9px] uppercase tracking-wider font-mono cursor-pointer select-none"
+                          title="Recalcular puntos de tareas activas"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Sincronizar
+                        </button>
+                      </div>
                       <div className="flex justify-between items-center text-xs">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 rounded-full bg-amber-700/30 border border-amber-500 text-center font-bold text-stone-100 flex items-center justify-center text-xs">{profile.partner1[0]}</div>
@@ -4210,6 +4249,42 @@ export default function App() {
                         className="w-full px-3 py-2 border rounded-xl dark:bg-stone-800 dark:border-stone-700 dark:text-white border-warm-200 focus:outline-none"
                       />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] uppercase font-mono font-bold text-stone-400 block mb-1">Puntos de {profile.partner1}</label>
+                      <input
+                        type="number"
+                        value={profile.points1}
+                        onChange={(e) => setProfile(p => ({ ...p, points1: Number(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 border rounded-xl dark:bg-stone-800 dark:border-stone-700 dark:text-white border-warm-200 focus:outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-mono font-bold text-stone-400 block mb-1">Puntos de {profile.partner2}</label>
+                      <input
+                        type="number"
+                        value={profile.points2}
+                        onChange={(e) => setProfile(p => ({ ...p, points2: Number(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 border rounded-xl dark:bg-stone-800 dark:border-stone-700 dark:text-white border-warm-200 focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-mono font-bold text-stone-400 block mb-1">Ajuste de Gamificación</label>
+                    <button
+                      type="button"
+                      onClick={() => handleRecalculatePoints(false)}
+                      className="w-full px-3 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-400 border border-amber-500/30 rounded-xl font-semibold cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin-slow" />
+                      🔄 Recalcular y Sincronizar Puntos desde Tareas Completas
+                    </button>
+                    <p className="text-[9px] text-stone-400 mt-1 italic text-center">
+                      Recalcula automáticamente los puntajes leyendo las tareas completadas actuales en su base de datos.
+                    </p>
                   </div>
 
                   <div>
