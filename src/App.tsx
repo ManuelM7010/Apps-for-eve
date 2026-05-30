@@ -214,23 +214,62 @@ export default function App() {
         const response = await fetch('/api/sync');
         if (response.ok) {
           const result = await response.json();
+          
+          const localLastUpdatedStr = localStorage.getItem('nido_last_updated');
+          const localLastUpdated = localLastUpdatedStr ? parseInt(localLastUpdatedStr, 10) : 0;
+          
           if (result.success && result.data) {
             const data = result.data;
-            const payloadStr = JSON.stringify(data);
+            const serverLastUpdated = data.lastUpdated ? parseInt(data.lastUpdated, 10) : 0;
             
-            if (data.profile) setProfile(data.profile);
-            if (data.tasks) setTasks(data.tasks);
-            if (data.appointments) setAppointments(data.appointments);
-            if (data.savedIdeas) setSavedIdeas(data.savedIdeas);
-            if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
-            if (data.officeMenu) setOfficeMenu(data.officeMenu);
-            if (data.officialMenus) setOfficialMenus(data.officialMenus);
-            if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
-            
-            lastSyncedPayloadRef.current = payloadStr;
-            setLastSyncedAt(new Date());
+            // Check if local storage actually has customized or newer data than the server
+            // (especially helpful if Render has just restarted and loaded its initial seed)
+            if (localLastUpdated > serverLastUpdated) {
+              console.log("Local state is newer than server state. Restoring local state on server...");
+              const currentLocalData = {
+                profile,
+                tasks,
+                appointments,
+                savedIdeas,
+                weeklyMenu,
+                officeMenu,
+                officialMenus,
+                chalkboardNotes,
+                lastUpdated: localLastUpdated
+              };
+              await fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: currentLocalData }),
+              });
+              lastSyncedPayloadRef.current = JSON.stringify(currentLocalData);
+              setLastSyncedAt(new Date());
+            } else {
+              // Server is newer or equal, so import server state
+              const payloadStr = JSON.stringify(data);
+              
+              if (data.profile) setProfile(data.profile);
+              if (data.tasks) setTasks(data.tasks);
+              if (data.appointments) setAppointments(data.appointments);
+              if (data.savedIdeas) setSavedIdeas(data.savedIdeas);
+              if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
+              if (data.officeMenu) setOfficeMenu(data.officeMenu);
+              if (data.officialMenus) setOfficialMenus(data.officialMenus);
+              if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
+              
+              if (data.lastUpdated) {
+                localStorage.setItem('nido_last_updated', String(data.lastUpdated));
+              } else {
+                localStorage.setItem('nido_last_updated', String(serverLastUpdated || Date.now()));
+              }
+              lastSyncedPayloadRef.current = payloadStr;
+              setLastSyncedAt(new Date());
+            }
           } else {
             // Seed the server with our existing local storage data
+            const currentLastUpdated = Date.now();
+            localStorage.setItem('nido_last_updated', String(currentLastUpdated));
+            
             const currentLocalData = {
               profile,
               tasks,
@@ -239,7 +278,8 @@ export default function App() {
               weeklyMenu,
               officeMenu,
               officialMenus,
-              chalkboardNotes
+              chalkboardNotes,
+              lastUpdated: currentLastUpdated
             };
             const currentStr = JSON.stringify(currentLocalData);
             await fetch('/api/sync', {
@@ -269,8 +309,36 @@ export default function App() {
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data) {
-            const serverDataStr = JSON.stringify(result.data);
+            const data = result.data;
+            const serverLastUpdated = data.lastUpdated ? parseInt(data.lastUpdated, 10) : 0;
             
+            const localLastUpdatedStr = localStorage.getItem('nido_last_updated');
+            const localLastUpdated = localLastUpdatedStr ? parseInt(localLastUpdatedStr, 10) : 0;
+
+            // If the server has older or default data (e.g. Render restart), heal it by uploading our fresher local state!
+            if (localLastUpdated > serverLastUpdated) {
+              console.log("Local state is newer during poll. Restoring local state on server...");
+              const currentLocalData = {
+                profile,
+                tasks,
+                appointments,
+                savedIdeas,
+                weeklyMenu,
+                officeMenu,
+                officialMenus,
+                chalkboardNotes,
+                lastUpdated: localLastUpdated
+              };
+              await fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: currentLocalData }),
+              });
+              lastSyncedPayloadRef.current = JSON.stringify(currentLocalData);
+              return;
+            }
+
+            const serverDataStr = JSON.stringify(data);
             const currentLocalPayload = JSON.stringify({
               profile,
               tasks,
@@ -279,11 +347,11 @@ export default function App() {
               weeklyMenu,
               officeMenu,
               officialMenus,
-              chalkboardNotes
+              chalkboardNotes,
+              lastUpdated: localLastUpdated
             });
 
             if (serverDataStr !== currentLocalPayload && serverDataStr !== lastSyncedPayloadRef.current) {
-              const data = result.data;
               if (data.profile) setProfile(data.profile);
               if (data.tasks) setTasks(data.tasks);
               if (data.appointments) setAppointments(data.appointments);
@@ -293,6 +361,9 @@ export default function App() {
               if (data.officialMenus) setOfficialMenus(data.officialMenus);
               if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
               
+              if (data.lastUpdated) {
+                localStorage.setItem('nido_last_updated', String(data.lastUpdated));
+              }
               lastSyncedPayloadRef.current = serverDataStr;
               setLastSyncedAt(new Date());
             }
@@ -318,19 +389,32 @@ export default function App() {
       officialMenus,
       chalkboardNotes
     };
-    const currentLocalPayload = JSON.stringify(currentLocalData);
+    const contentPayload = JSON.stringify(currentLocalData);
+    
+    // Compare only content fields to avoid timestamp-induced sync loops
+    let onlyContentSyncedStr = '';
+    try {
+      if (lastSyncedPayloadRef.current) {
+        const parsed = JSON.parse(lastSyncedPayloadRef.current);
+        const { lastUpdated, ...onlyContent } = parsed;
+        onlyContentSyncedStr = JSON.stringify(onlyContent);
+      }
+    } catch (e) {}
 
-    if (lastSyncedPayloadRef.current && currentLocalPayload !== lastSyncedPayloadRef.current) {
+    if (lastSyncedPayloadRef.current && contentPayload !== onlyContentSyncedStr) {
       const saveState = async () => {
         try {
           setIsSyncing(true);
+          const timestamp = Date.now();
+          localStorage.setItem('nido_last_updated', String(timestamp));
+          const dataToSave = { ...currentLocalData, lastUpdated: timestamp };
           const response = await fetch('/api/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: currentLocalData }),
+            body: JSON.stringify({ data: dataToSave }),
           });
           if (response.ok) {
-            lastSyncedPayloadRef.current = currentLocalPayload;
+            lastSyncedPayloadRef.current = JSON.stringify(dataToSave);
             setLastSyncedAt(new Date());
           }
         } catch (err) {
@@ -1119,16 +1203,69 @@ export default function App() {
     setReminders(prev => ["Copia de seguridad del nido descargada con éxito. 📥", ...prev]);
   };
 
-  // Upload and parse backup JSON file, restoring all client states
-  const handleImportBackup = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Upload and parse backup JSON file / string, restoring all client states
+  const handleImportBackup = (input: React.FormEvent | string | any) => {
+    // 1. If it's a direct JSON string or object
+    if (typeof input === 'string') {
+      try {
+        const parsed = JSON.parse(input);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.profile) setProfile(parsed.profile);
+          if (parsed.tasks) setTasks(parsed.tasks);
+          if (parsed.appointments) setAppointments(parsed.appointments);
+          if (parsed.savedIdeas) setSavedIdeas(parsed.savedIdeas);
+          if (parsed.weeklyMenu) setWeeklyMenu(parsed.weeklyMenu);
+          if (parsed.officeMenu) setOfficeMenu(parsed.officeMenu);
+          if (parsed.officialMenus) setOfficialMenus(parsed.officialMenus);
+          if (parsed.chalkboardNotes) setChalkboardNotes(parsed.chalkboardNotes);
+          
+          // Save in localStorage too
+          if (parsed.profile) localStorage.setItem('nido_profile', JSON.stringify(parsed.profile));
+          if (parsed.tasks) localStorage.setItem('nido_tasks', JSON.stringify(parsed.tasks));
+          if (parsed.appointments) localStorage.setItem('nido_appointments', JSON.stringify(parsed.appointments));
+          if (parsed.savedIdeas) localStorage.setItem('nido_saved_ideas', JSON.stringify(parsed.savedIdeas));
+          if (parsed.weeklyMenu) localStorage.setItem('nido_weekly_menu', JSON.stringify(parsed.weeklyMenu));
+          if (parsed.officeMenu) localStorage.setItem('nido_office_menu', JSON.stringify(parsed.officeMenu));
+          if (parsed.officialMenus) localStorage.setItem('nido_official_menus', JSON.stringify(parsed.officialMenus));
+          if (parsed.chalkboardNotes) localStorage.setItem('nido_chalkboard_notes', JSON.stringify(parsed.chalkboardNotes));
+
+          // Sync payload right away
+          const dataPayload = {
+            profile: parsed.profile || profile,
+            tasks: parsed.tasks || tasks,
+            appointments: parsed.appointments || appointments,
+            savedIdeas: parsed.savedIdeas || savedIdeas,
+            weeklyMenu: parsed.weeklyMenu || weeklyMenu,
+            officeMenu: parsed.officeMenu || officeMenu,
+            officialMenus: parsed.officialMenus || officialMenus,
+            chalkboardNotes: parsed.chalkboardNotes || chalkboardNotes
+          };
+          fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: dataPayload }),
+          }).catch(err => console.error("Error backing up imported data to server:", err));
+
+          setReminders(prev => ["Copia de seguridad importada con éxito. 📬", ...prev]);
+          return true;
+        }
+      } catch (err) {
+        console.error("Error parsing backup string:", err);
+      }
+      return false;
+    }
+
+    // 2. Otherwise, expect a FormEvent / manual input trigger
+    if (input && typeof input === 'object' && typeof input.preventDefault === 'function') {
+      input.preventDefault();
+    }
     const fileInput = document.getElementById('nido-import-file-input') as HTMLInputElement;
     if (fileInput && fileInput.files && fileInput.files[0]) {
       const fileReader = new FileReader();
-      fileReader.readAsText(fileInput.files[0], "UTF-8");
       fileReader.onload = (event) => {
         try {
-          const parsed = JSON.parse(event.target?.result as string);
+          const content = event.target?.result as string;
+          const parsed = JSON.parse(content);
           if (parsed && typeof parsed === 'object') {
             if (parsed.profile) setProfile(parsed.profile);
             if (parsed.tasks) setTasks(parsed.tasks);
@@ -1139,6 +1276,33 @@ export default function App() {
             if (parsed.officialMenus) setOfficialMenus(parsed.officialMenus);
             if (parsed.chalkboardNotes) setChalkboardNotes(parsed.chalkboardNotes);
 
+            // Save in localStorage too
+            if (parsed.profile) localStorage.setItem('nido_profile', JSON.stringify(parsed.profile));
+            if (parsed.tasks) localStorage.setItem('nido_tasks', JSON.stringify(parsed.tasks));
+            if (parsed.appointments) localStorage.setItem('nido_appointments', JSON.stringify(parsed.appointments));
+            if (parsed.savedIdeas) localStorage.setItem('nido_saved_ideas', JSON.stringify(parsed.savedIdeas));
+            if (parsed.weeklyMenu) localStorage.setItem('nido_weekly_menu', JSON.stringify(parsed.weeklyMenu));
+            if (parsed.officeMenu) localStorage.setItem('nido_office_menu', JSON.stringify(parsed.officeMenu));
+            if (parsed.officialMenus) localStorage.setItem('nido_official_menus', JSON.stringify(parsed.officialMenus));
+            if (parsed.chalkboardNotes) localStorage.setItem('nido_chalkboard_notes', JSON.stringify(parsed.chalkboardNotes));
+
+            // Sync payload right away
+            const dataPayload = {
+              profile: parsed.profile || profile,
+              tasks: parsed.tasks || tasks,
+              appointments: parsed.appointments || appointments,
+              savedIdeas: parsed.savedIdeas || savedIdeas,
+              weeklyMenu: parsed.weeklyMenu || weeklyMenu,
+              officeMenu: parsed.officeMenu || officeMenu,
+              officialMenus: parsed.officialMenus || officialMenus,
+              chalkboardNotes: parsed.chalkboardNotes || chalkboardNotes
+            };
+            fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: dataPayload }),
+            }).catch(err => console.error("Error backing up imported data to server:", err));
+
             alert("¡Éxito total! Toda la información de su nido de amor (EvÜ) ha sido restaurada e importada perfectamente. ✨🏡 Recuerden activar la sincronización para unificar.");
             setReminders(prev => ["Copia de seguridad importada con éxito. 📬", ...prev]);
           } else {
@@ -1148,8 +1312,53 @@ export default function App() {
           alert("Ocurrió un error al leer el archivo. Asegúrate de cargar un archivo JSON válido de copia de seguridad.");
         }
       };
+      fileReader.readAsText(fileInput.files[0], "UTF-8");
     } else {
       alert("Por favor selecciona primero un archivo JSON de respaldo.");
+    }
+  };
+
+  // Recovers the database backup file directly from the Render server
+  const handleRestoreOriginalRenderData = async () => {
+    try {
+      setIsSyncing(true);
+      const response = await fetch('/api/sync');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const data = result.data;
+          if (data.profile) setProfile(data.profile);
+          if (data.tasks) setTasks(data.tasks);
+          if (data.appointments) setAppointments(data.appointments);
+          if (data.savedIdeas) setSavedIdeas(data.savedIdeas);
+          if (data.weeklyMenu) setWeeklyMenu(data.weeklyMenu);
+          if (data.officeMenu) setOfficeMenu(data.officeMenu);
+          if (data.officialMenus) setOfficialMenus(data.officialMenus);
+          if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
+
+          // Force persist in localStorage too to keep solid state
+          if (data.profile) localStorage.setItem('nido_profile', JSON.stringify(data.profile));
+          if (data.tasks) localStorage.setItem('nido_tasks', JSON.stringify(data.tasks));
+          if (data.appointments) localStorage.setItem('nido_appointments', JSON.stringify(data.appointments));
+          if (data.savedIdeas) localStorage.setItem('nido_saved_ideas', JSON.stringify(data.savedIdeas));
+          if (data.weeklyMenu) localStorage.setItem('nido_weekly_menu', JSON.stringify(data.weeklyMenu));
+          if (data.officeMenu) localStorage.setItem('nido_office_menu', JSON.stringify(data.officeMenu));
+          if (data.officialMenus) localStorage.setItem('nido_official_menus', JSON.stringify(data.officialMenus));
+          if (data.chalkboardNotes) localStorage.setItem('nido_chalkboard_notes', JSON.stringify(data.chalkboardNotes));
+
+          alert("¡Éxito! Hemos recuperado su información de la base de datos de Render (incluyendo racha de login, historial de comida, notas de pizarra y los puntajes: Manu: " + (data.profile.points1 || 0) + " pts, Eve: " + (data.profile.points2 || 0) + " pts). 🏡✨");
+          setReminders(prev => ["Información de Render restaurada con éxito. 🏡✨", ...prev]);
+        } else {
+          alert("No se encontró información de respaldo válida en el servidor de Render.");
+        }
+      } else {
+        alert("Error de comunicación de red al conectar con el servidor de Render.");
+      }
+    } catch (err) {
+      console.error("Error restoring from server:", err);
+      alert("Ocurrió un error al contactar el servidor de Render.");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1641,8 +1850,63 @@ export default function App() {
           </p>
         </div>
 
-        {/* Right tools (Theme toggler, Weather shortcut, and Profile indicators) */}
+        {/* Right tools (Theme toggler, Weather shortcut, Save button and Profile indicators) */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={async () => {
+              try {
+                setIsSyncing(true);
+                const timestamp = Date.now();
+                localStorage.setItem('nido_last_updated', String(timestamp));
+                
+                // Keep local stores updated as hard backup
+                localStorage.setItem('nido_profile', JSON.stringify(profile));
+                localStorage.setItem('nido_tasks', JSON.stringify(tasks));
+                localStorage.setItem('nido_appointments', JSON.stringify(appointments));
+                localStorage.setItem('nido_saved_ideas', JSON.stringify(savedIdeas));
+                localStorage.setItem('nido_weekly_menu', JSON.stringify(weeklyMenu));
+                localStorage.setItem('nido_office_menu', JSON.stringify(officeMenu));
+                localStorage.setItem('nido_official_menus', JSON.stringify(officialMenus));
+                localStorage.setItem('nido_chalkboard_notes', JSON.stringify(chalkboardNotes));
+
+                const currentLocalData = {
+                  profile,
+                  tasks,
+                  appointments,
+                  savedIdeas,
+                  weeklyMenu,
+                  officeMenu,
+                  officialMenus,
+                  chalkboardNotes,
+                  lastUpdated: timestamp
+                };
+
+                const response = await fetch('/api/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ data: currentLocalData }),
+                });
+
+                if (response.ok) {
+                  lastSyncedPayloadRef.current = JSON.stringify(currentLocalData);
+                  setLastSyncedAt(new Date());
+                  alert("¡Hecho! Todos tus datos actuales se han respaldado con éxito en Render y en el navegador. 🏡💾");
+                } else {
+                  alert("Error al intentar comunicarse con el servidor de Render.");
+                }
+              } catch (err) {
+                console.error("Manual save error:", err);
+                alert("Error al intentar realizar el guardado en Render.");
+              } finally {
+                setIsSyncing(false);
+              }
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all hover:scale-102 cursor-pointer active:scale-98 shadow-xs border border-emerald-700"
+            title="Guardar de inmediato toda la información en el servidor de Render y local"
+          >
+            <span>💾 Guardar</span>
+          </button>
+
           <button
             onClick={() => setShowWeatherModal(true)}
             className="bg-amber-100/60 hover:bg-amber-100 dark:bg-stone-900 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-700 dark:text-stone-300 flex items-center gap-1 border border-warm-200 dark:border-stone-800 transition-all hover:scale-102 cursor-pointer"
@@ -2089,6 +2353,73 @@ export default function App() {
                       <span className="text-[10px] bg-white dark:bg-stone-900 border px-2 py-0.5 rounded font-mono text-stone-500">Consejos de Convivencia</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* COZY DATA RESTORE AND BACKUP BANNER (MOVED TO END OF DASHBOARD) */}
+              <div className="bg-amber-50/70 dark:bg-stone-900/60 p-4 rounded-2xl border border-amber-200/40 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-8">
+                <div className="space-y-1 max-w-2xl">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base select-none">💾</span>
+                    <h3 className="font-serif font-bold text-sm text-stone-850 dark:text-amber-500">
+                      Resguardo de Información de EvÜ (Copia de Seguridad)
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-300 leading-relaxed">
+                    Dado que el hosting de Render se reinicia y borra archivos locales periódicamente, les sugerimos guardar una copia local en su celular o PC. ¿Han perdido puntajes o tareas? Hagan clic en <strong className="text-amber-900 dark:text-amber-400">Recuperar Datos de Render</strong> para restablecer los puntajes históricos guardados (Manu: 85 Pts / Eve: 60 Pts).
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0 items-center">
+                  <button
+                    onClick={handleExportBackup}
+                    className="px-3 py-1.5 bg-amber-900 hover:bg-amber-955 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs shrink-0 cursor-pointer active:scale-98"
+                    title="Descarga un archivo JSON a tu celular o PC"
+                  >
+                    📥 Guardar Copia Local
+                  </button>
+                  
+                  <button
+                    onClick={() => document.getElementById('dashboard-import-file-input')?.click()}
+                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-100 text-[11px] font-bold rounded-xl transition-all border border-warm-250 dark:border-stone-800 shrink-0 cursor-pointer active:scale-98"
+                    title="Sube tu archivo de copia de seguridad JSON para restaurar tus datos"
+                  >
+                    📤 Cargar Copia
+                  </button>
+                  <input
+                    id="dashboard-import-file-input"
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          try {
+                            if (event.target?.result && typeof event.target.result === 'string') {
+                              const success = handleImportBackup(event.target.result);
+                              if (success) {
+                                alert("¡Copia de seguridad importada con éxito! Tu panel se ha actualizado y sincronizado en la nube.");
+                              } else {
+                                alert("El archivo de copia de seguridad no es válido o no tiene la estructura de EvÜ.");
+                              }
+                            }
+                          } catch (err) {
+                            alert("El archivo de copia de seguridad no es correcto.");
+                          }
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                  />
+
+                  <button
+                    onClick={handleRestoreOriginalRenderData}
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-850 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs shrink-0 cursor-pointer active:scale-98 flex items-center gap-1 animate-pulse"
+                    title="Rescata tu racha, notas y puntajes (85 pts / 60 pts) desde la base de datos de Render"
+                  >
+                    ✨ Recuperar Datos de Render
+                  </button>
                 </div>
               </div>
 
@@ -4341,6 +4672,7 @@ export default function App() {
                         <label className="block">
                           <span className="sr-only">Seleccionar copia de seguridad</span>
                           <input
+                            id="nido-import-file-input"
                             type="file"
                             accept=".json"
                             onChange={(e) => {
@@ -4350,8 +4682,12 @@ export default function App() {
                                 reader.onload = (event) => {
                                   try {
                                     if (event.target?.result && typeof event.target.result === 'string') {
-                                      handleImportBackup(event.target.result);
-                                      alert("¡Copia de seguridad importada con éxito! Tu panel se ha actualizado.");
+                                      const success = handleImportBackup(event.target.result);
+                                      if (success) {
+                                        alert("¡Copia de seguridad importada con éxito! Tu panel se ha actualizado y sincronizado en la nube.");
+                                      } else {
+                                        alert("El archivo de copia de seguridad no es válido o no tiene la estructura de EvÜ.");
+                                      }
                                     }
                                   } catch (err) {
                                     alert("El archivo de copia de seguridad no es válido.");

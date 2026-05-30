@@ -3,10 +3,10 @@ import { CoupleTask, DateAppointment, SavedDateIdea, DayMenu, CoupleProfile } fr
 export const defaultProfile: CoupleProfile = {
   partner1: 'Manu',
   partner2: 'Eve',
-  anniversaryDate: '2024-10-12', // Aniversario de pareja
-  points1: 120,
-  points2: 150,
-  streakDays: 14,
+  anniversaryDate: '2021-11-21', // Aniversario de novios real de Manu & Eve
+  points1: 85,
+  points2: 60,
+  streakDays: 9, // Activos desde el viernes 22 de mayo 2026 (9 días de racha al 30 de mayo)
 };
 
 export const defaultTasks: CoupleTask[] = [
@@ -19,7 +19,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Él',
     duration: '10 min',
     autoRepeat: true,
-    completed: false,
+    completed: true,
     scorePoints: 10,
   },
   {
@@ -43,7 +43,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Ella',
     duration: '20 min',
     autoRepeat: true,
-    completed: false,
+    completed: true,
     scorePoints: 15,
   },
   {
@@ -55,7 +55,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Ambos',
     duration: '15 min',
     autoRepeat: true,
-    completed: false,
+    completed: true,
     scorePoints: 20,
   },
   {
@@ -81,15 +81,6 @@ export const defaultAppointments: DateAppointment[] = [
     mood: 'Romántica',
     location: 'En Casa',
     completed: false,
-  },
-  {
-    id: 'a-2',
-    title: 'Visita romántica al Mirador El Boquerón',
-    date: '2026-05-10',
-    time: '16:30',
-    mood: 'Relajante',
-    location: 'San Salvador (Alrededores)',
-    completed: true,
   },
   {
     id: 'a-3',
