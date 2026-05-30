@@ -4,8 +4,8 @@ export const defaultProfile: CoupleProfile = {
   partner1: 'Manu',
   partner2: 'Eve',
   anniversaryDate: '2021-11-21', // Aniversario de novios real de Manu & Eve
-  points1: 85,
-  points2: 60,
+  points1: 350,
+  points2: 550,
   streakDays: 9, // Activos desde el viernes 22 de mayo 2026 (9 días de racha al 30 de mayo)
 };
 
