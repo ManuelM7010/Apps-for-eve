@@ -38,9 +38,49 @@ import { defaultProfile, defaultTasks, defaultAppointments, defaultSavedIdeas, d
 import { allOneHundredRecipes, Recipe } from './data/recipes';
 import ChatbotOverlay from './components/ChatbotOverlay';
 
+const triviaQuestions: Record<string, string[]> = {
+  profundas: [
+    "¿Qué es lo que más te da paz del nido que hemos construido juntos?",
+    "¿Cuál es una lección valiosa que has aprendido de nuestra relación este último año?",
+    "¿Qué pequeño detalle diario mío te hace sentir más amado(a) o valorado(a)?",
+    "¿Qué sueño personal o de pareja te gustaría que logremos juntos en los próximos 2 años?",
+    "Si pudieras pedir un deseo para nuestro hogar hoy, ¿cuál sería?"
+  ],
+  graciosas: [
+    "Si nos mudáramos a una isla desierta, ¿quién se comería las bayas venenosas por curiosidad?",
+    "¿Cuál es la manía o hábito más gracioso o extraño que has descubierto de mí?",
+    "Si nuestra relación fuera una comida típica salvadoreña, ¿sería una pupusa de quesillo, un atol de elote o un tamal frito, y por qué?",
+    "¿Quién tiene más probabilidades de perderse manejando aun con Google Maps encendido?",
+    "Si tuviéramos que intercambiar roles en la cocina por una semana entera, ¿cuál sería el plato más desastroso que cocinaríamos?"
+  ],
+  historia: [
+    "¿Qué recuerdas más vívidamente de nuestro primer beso o de nuestra primera cita real?",
+    "¿Cuál ha sido el momento en que nos reímos tanto que nos dolió el estómago juntos?",
+    "Describe tu recuerdo favorito de nosotros paseando por Planes de Renderos.",
+    "¿Cuál fue el momento exacto o detalle en el que supiste que querías estar conmigo?",
+    "¿Qué canción te recuerda inmediatamente a mí o a nuestros primeros meses de relación?"
+  ],
+  futuro: [
+    "¿Cómo imaginas nuestro domingo por la mañana ideal dentro de cinco años?",
+    "¿Qué rincón de El Salvador te emociona más que visitemos juntos pronto?",
+    "Si agregáramos un gatito o perrito extra a nuestro nido de amor, ¿qué nombre scout o gracioso le pondríamos?",
+    "¿Qué actividad o hobby completamente nuevo te gustaría que intentáramos aprender juntos este año?",
+    "¿Cómo te gustaría celebrar nuestro próximo aniversario de novios?"
+  ]
+};
+
+const challengesPool = [
+  "🍵 Preparar un té, atol de elote o cafecito caliente al amor de tu vida en este instante.",
+  "💬 Dile 3 cosas que admiras profundamente de él/ella viéndose fijamente a los ojos.",
+  "🤗 Un abrazo apretado y cariñoso de 35 segundos enteros, en absoluto silencio.",
+  "✍️ Escríbele una tarjetita rápida a mano en un post-it y pégasela en su laptop o termo.",
+  "💃 Pon una canción lenta y bailen medio minuto juntos en la sala.",
+  "🫣 Dale un beso tierno en la frente o mejilla y dile lo mucho que agradeces su paciencia."
+];
+
 export default function App() {
-  // Navigation Labs: 'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea' | 'pizarra'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea' | 'pizarra'>('dashboard');
+  // Navigation Labs: 'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea' | 'pizarra' | 'complementos'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'citas' | 'hogar' | 'alimentacion' | 'perfil' | 'instantanea' | 'pizarra' | 'complementos'>('dashboard');
 
   // App Global State (Persisted in localStorage with default templates)
   const [profile, setProfile] = useState<CoupleProfile>(() => {
@@ -178,6 +218,49 @@ export default function App() {
   // Weekly Planner - Week selection offset state (e.g. 0 for current week, 1 for next week, etc.)
   const [selectedWeekOffset, setSelectedWeekOffset] = useState<number>(0);
 
+  // Love anniversary precise real-time timer calculation
+  const [anniversaryTimer, setAnniversaryTimer] = useState({
+    years: 0,
+    months: 0,
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
+
+  useEffect(() => {
+    const calculateTime = () => {
+      const anniversaryStr = profile.anniversaryDate || '2021-11-21';
+      const start = new Date(anniversaryStr + 'T00:00:00');
+      const now = new Date();
+      const diffMs = now.getTime() - start.getTime();
+      if (isNaN(diffMs) || diffMs < 0) return;
+
+      let seconds = Math.floor(diffMs / 1000);
+      let minutes = Math.floor(seconds / 60);
+      let hours = Math.floor(minutes / 60);
+      let days = Math.floor(hours / 24);
+
+      const years = Math.floor(days / 365.25);
+      const remainingDays = Math.floor(days % 365.25);
+      const months = Math.floor(remainingDays / 30.4375);
+      const finalDays = Math.floor(remainingDays % 30.4375);
+
+      setAnniversaryTimer({
+        years,
+        months,
+        days: finalDays,
+        hours: hours % 24,
+        minutes: minutes % 60,
+        seconds: seconds % 60
+      });
+    };
+
+    calculateTime();
+    const interval = setInterval(calculateTime, 1000);
+    return () => clearInterval(interval);
+  }, [profile.anniversaryDate]);
+
   // Chalkboard / Message board state
   const [chalkboardNotes, setChalkboardNotes] = useState<any[]>(() => {
     const saved = localStorage.getItem('nido_chalkboard_notes');
@@ -195,9 +278,34 @@ export default function App() {
   const [newNoteWriter, setNewNoteWriter] = useState<'Eve' | 'Manu'>('Eve');
   const [newNoteColor, setNewNoteColor] = useState<'yellow' | 'pink' | 'green' | 'blue' | 'purple'>('yellow');
 
+  const [coupons, setCoupons] = useState<any[]>(() => {
+    const saved = localStorage.getItem('nido_coupons');
+    try {
+      return saved ? JSON.parse(saved) : [
+        { id: 'c-1', title: '💆 Masaje de Espalda o Pies (20 min)', desc: 'Válido para un masaje relajante y desestresante realizado por tu pareja.', status: 'disponible', owner: 'Ambos' },
+        { id: 'c-2', title: '🍳 Desayuno Sorpresa a la Cama', desc: 'Tu pareja se levantará temprano para prepararte un rico plátano frito con frijolitos, crema y café de olla caliente.', status: 'disponible', owner: 'Ambos' },
+        { id: 'c-3', title: '🧼 Salvado de Lavar Trastos de Cocina', desc: '¡Libre de lavar platos por un día completo sin reproches de ningún tipo!', status: 'disponible', owner: 'Ambos' },
+        { id: 'c-4', title: '🍿 Selector Supremo de Películas', desc: 'Tienes derecho a escoger la película o serie de la noche y tu pareja no puede protestar.', status: 'disponible', owner: 'Ambos' },
+        { id: 'c-5', title: '☕ Vale por un Café Especial + Pan Dulce', desc: 'Canjeable por tu bebida de café favorita y una rica semita o quesadilla salvadoreña recién horneada.', status: 'disponible', owner: 'Ambos' },
+        { id: 'c-6', title: '🍕 Cena de Antojo a Domicilio Pagada', desc: '¡Día libre de cocinar! Pedimos pupusas o pizza y tu pareja se encarga de pagar la cuenta con gusto.', status: 'disponible', owner: 'Ambos' }
+      ];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [triviaIndex, setTriviaIndex] = useState(0);
+  const [triviaCategory, setTriviaCategory] = useState<'profundas' | 'graciosas' | 'historia' | 'futuro'>('profundas');
+  const [activeChallenge, setActiveChallenge] = useState<string>('');
+  const [isSpinning, setIsSpinning] = useState(false);
+
   useEffect(() => {
     localStorage.setItem('nido_chalkboard_notes', JSON.stringify(chalkboardNotes));
   }, [chalkboardNotes]);
+
+  useEffect(() => {
+    localStorage.setItem('nido_coupons', JSON.stringify(coupons));
+  }, [coupons]);
 
   // ==========================================
   // COZY REAL-TIME DEVICE SYNCHRONIZER
@@ -235,6 +343,7 @@ export default function App() {
                 officeMenu,
                 officialMenus,
                 chalkboardNotes,
+                coupons,
                 lastUpdated: localLastUpdated
               };
               await fetch('/api/sync', {
@@ -256,6 +365,10 @@ export default function App() {
               if (data.officeMenu) setOfficeMenu(data.officeMenu);
               if (data.officialMenus) setOfficialMenus(data.officialMenus);
               if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
+              if (data.coupons) {
+                setCoupons(data.coupons);
+                localStorage.setItem('nido_coupons', JSON.stringify(data.coupons));
+              }
               
               if (data.lastUpdated) {
                 localStorage.setItem('nido_last_updated', String(data.lastUpdated));
@@ -1335,6 +1448,7 @@ export default function App() {
           if (data.officeMenu) setOfficeMenu(data.officeMenu);
           if (data.officialMenus) setOfficialMenus(data.officialMenus);
           if (data.chalkboardNotes) setChalkboardNotes(data.chalkboardNotes);
+          if (data.coupons) setCoupons(data.coupons);
 
           // Force persist in localStorage too to keep solid state
           if (data.profile) localStorage.setItem('nido_profile', JSON.stringify(data.profile));
@@ -1345,6 +1459,7 @@ export default function App() {
           if (data.officeMenu) localStorage.setItem('nido_office_menu', JSON.stringify(data.officeMenu));
           if (data.officialMenus) localStorage.setItem('nido_official_menus', JSON.stringify(data.officialMenus));
           if (data.chalkboardNotes) localStorage.setItem('nido_chalkboard_notes', JSON.stringify(data.chalkboardNotes));
+          if (data.coupons) localStorage.setItem('nido_coupons', JSON.stringify(data.coupons));
 
           alert("¡Éxito! Hemos recuperado su información de la base de datos de Render (incluyendo racha de login, historial de comida, notas de pizarra y los puntajes: Manu: " + (data.profile.points1 || 0) + " pts, Eve: " + (data.profile.points2 || 0) + " pts). 🏡✨");
           setReminders(prev => ["Información de Render restaurada con éxito. 🏡✨", ...prev]);
@@ -1359,6 +1474,21 @@ export default function App() {
       alert("Ocurrió un error al contactar el servidor de Render.");
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleRedeemCoupon = (couponId: string) => {
+    setCoupons(prev => prev.map(c => {
+      if (c.id === couponId) {
+        return { ...c, status: c.status === 'disponible' ? 'canjeado' : 'disponible' };
+      }
+      return c;
+    }));
+  };
+
+  const handleResetCoupons = () => {
+    if (confirm("¿Seguros de restablecer todos los vales de amor a su estado 'Disponible'?")) {
+      setCoupons(prev => prev.map(c => ({ ...c, status: 'disponible' })));
     }
   };
 
@@ -1825,18 +1955,80 @@ export default function App() {
             <h1 className="font-serif font-bold text-lg md:text-xl text-amber-900 dark:text-amber-500 tracking-tight flex items-center gap-1.5 leading-none">
               Nido <Heart className="h-3 w-3 fill-amber-700 text-amber-700 animate-pulse" />
             </h1>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium select-none">Pareja, Hogar & IA</p>
-              <div 
-                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold select-none transition-all ${
-                  isSyncing 
-                    ? 'bg-amber-100 text-amber-850 dark:bg-amber-950/40 dark:text-amber-300' 
-                    : 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
-                }`}
-                title={lastSyncedAt ? `Última sincronización: ${lastSyncedAt.toLocaleTimeString()}` : 'Buscando servidor...'}
-              >
-                <span className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></span>
-                {isSyncing ? 'Sincronizando' : 'Sincronizado'}
+              
+              <div className="flex items-center gap-1">
+                <div 
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold select-none transition-all ${
+                    isSyncing 
+                      ? 'bg-amber-100 text-amber-850 dark:bg-amber-950/40 dark:text-amber-300' 
+                      : 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
+                  }`}
+                  title={lastSyncedAt ? `Última Sincronización: ${lastSyncedAt.toLocaleTimeString()}` : 'Buscando servidor...'}
+                >
+                  <span className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></span>
+                  {isSyncing ? 'Sincronizando' : 'Sincronizado'}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setIsSyncing(true);
+                      const timestamp = Date.now();
+                      localStorage.setItem('nido_last_updated', String(timestamp));
+                      
+                      // Keep local stores updated as hard backup
+                      localStorage.setItem('nido_profile', JSON.stringify(profile));
+                      localStorage.setItem('nido_tasks', JSON.stringify(tasks));
+                      localStorage.setItem('nido_appointments', JSON.stringify(appointments));
+                      localStorage.setItem('nido_saved_ideas', JSON.stringify(savedIdeas));
+                      localStorage.setItem('nido_weekly_menu', JSON.stringify(weeklyMenu));
+                      localStorage.setItem('nido_office_menu', JSON.stringify(officeMenu));
+                      localStorage.setItem('nido_official_menus', JSON.stringify(officialMenus));
+                      localStorage.setItem('nido_chalkboard_notes', JSON.stringify(chalkboardNotes));
+                      localStorage.setItem('nido_coupons', JSON.stringify(coupons));
+
+                      const currentLocalData = {
+                        profile,
+                        tasks,
+                        appointments,
+                        savedIdeas,
+                        weeklyMenu,
+                        officeMenu,
+                        officialMenus,
+                        chalkboardNotes,
+                        coupons,
+                        lastUpdated: timestamp
+                      };
+
+                      const response = await fetch('/api/sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: currentLocalData }),
+                      });
+
+                      if (response.ok) {
+                        lastSyncedPayloadRef.current = JSON.stringify(currentLocalData);
+                        setLastSyncedAt(new Date());
+                        alert("¡Hecho! Todos tus datos actuales se han respaldado con éxito en Render y en el navegador. 🏡💾");
+                      } else {
+                        alert("Error al intentar comunicarse con el servidor de Render.");
+                      }
+                    } catch (err) {
+                      console.error("Manual save error:", err);
+                      alert("Error al intentar realizar el guardado en Render.");
+                    } finally {
+                      setIsSyncing(false);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-750 text-white px-1.5 py-0.5 sm:px-2.5 sm:py-0.5 rounded-full text-[9px] font-bold flex items-center justify-center gap-0.5 transition-all hover:scale-102 cursor-pointer active:scale-95 shadow-xs border border-emerald-700"
+                  title="Guardar de inmediato toda la información en el servidor de Render y local"
+                >
+                  <span>💾</span>
+                  <span className="hidden sm:inline">Guardar</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1851,69 +2043,14 @@ export default function App() {
         </div>
 
         {/* Right tools (Theme toggler, Weather shortcut, Save button and Profile indicators) */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={async () => {
-              try {
-                setIsSyncing(true);
-                const timestamp = Date.now();
-                localStorage.setItem('nido_last_updated', String(timestamp));
-                
-                // Keep local stores updated as hard backup
-                localStorage.setItem('nido_profile', JSON.stringify(profile));
-                localStorage.setItem('nido_tasks', JSON.stringify(tasks));
-                localStorage.setItem('nido_appointments', JSON.stringify(appointments));
-                localStorage.setItem('nido_saved_ideas', JSON.stringify(savedIdeas));
-                localStorage.setItem('nido_weekly_menu', JSON.stringify(weeklyMenu));
-                localStorage.setItem('nido_office_menu', JSON.stringify(officeMenu));
-                localStorage.setItem('nido_official_menus', JSON.stringify(officialMenus));
-                localStorage.setItem('nido_chalkboard_notes', JSON.stringify(chalkboardNotes));
-
-                const currentLocalData = {
-                  profile,
-                  tasks,
-                  appointments,
-                  savedIdeas,
-                  weeklyMenu,
-                  officeMenu,
-                  officialMenus,
-                  chalkboardNotes,
-                  lastUpdated: timestamp
-                };
-
-                const response = await fetch('/api/sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ data: currentLocalData }),
-                });
-
-                if (response.ok) {
-                  lastSyncedPayloadRef.current = JSON.stringify(currentLocalData);
-                  setLastSyncedAt(new Date());
-                  alert("¡Hecho! Todos tus datos actuales se han respaldado con éxito en Render y en el navegador. 🏡💾");
-                } else {
-                  alert("Error al intentar comunicarse con el servidor de Render.");
-                }
-              } catch (err) {
-                console.error("Manual save error:", err);
-                alert("Error al intentar realizar el guardado en Render.");
-              } finally {
-                setIsSyncing(false);
-              }
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all hover:scale-102 cursor-pointer active:scale-98 shadow-xs border border-emerald-700"
-            title="Guardar de inmediato toda la información en el servidor de Render y local"
-          >
-            <span>💾 Guardar</span>
-          </button>
-
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowWeatherModal(true)}
             className="bg-amber-100/60 hover:bg-amber-100 dark:bg-stone-900 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-700 dark:text-stone-300 flex items-center gap-1 border border-warm-200 dark:border-stone-800 transition-all hover:scale-102 cursor-pointer"
             title={`Ver reporte detallado de Google Weather para ${getDynamicWeather().city}`}
           >
             <span className="text-xs">{getDynamicWeather().icon}</span>
-            <span className="truncate max-w-[125px] sm:max-w-none font-bold">{getDynamicWeather().city} • {getDynamicWeather().temp}</span>
+            <span className="truncate max-w-[80px] xs:max-w-[110px] sm:max-w-none font-bold">{getDynamicWeather().city} • {getDynamicWeather().temp}</span>
           </button>
 
           <button
@@ -1946,8 +2083,8 @@ export default function App() {
       <div className="flex-1 flex flex-col md:flex-row">
         
         {/* SIDE NAV - FROSTED GLASS ASIDE BAR */}
-        <aside className="w-full md:w-24 shrink-0 bg-white/40 dark:bg-stone-900/30 border-b md:border-b-0 md:border-r border-warm-200 dark:border-warm-800/60 p-4 flex flex-row md:flex-col items-center justify-between gap-4 select-none">
-          <div className="flex md:flex-col gap-3 md:gap-6 w-full items-center justify-center md:justify-start">
+        <aside className="w-full md:w-24 shrink-0 bg-white/40 dark:bg-stone-900/30 border-b md:border-b-0 md:border-r border-warm-200 dark:border-warm-800/60 p-3 md:p-4 flex flex-row md:flex-col items-center justify-between gap-4 select-none overflow-x-auto scrollbar-none">
+          <div className="flex md:flex-col gap-2.5 md:gap-6 items-center justify-start md:justify-start w-max md:w-full">
             
             <button
               onClick={() => setActiveTab('dashboard')}
@@ -2019,6 +2156,18 @@ export default function App() {
             >
               <MessageSquare className="h-5 w-5" />
               <span className="text-[10px] font-medium">Pizarra</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('complementos')}
+              className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl w-14 md:w-16 transition-all duration-200 cursor-pointer ${
+                activeTab === 'complementos'
+                  ? 'bg-amber-900 text-white shadow-md shadow-amber-900/20 scale-105'
+                  : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-amber-900 dark:hover:text-amber-500'
+              }`}
+            >
+              <Sparkles className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Add-ins</span>
             </button>
 
             <button
@@ -4419,6 +4568,244 @@ export default function App() {
                   </div>
                 </div>
 
+              </div>
+
+            </div>
+          )}
+
+          {/* ==========================================
+              VIEW EXTRA: COMPLEMENTOS / ADD-INS INTERACTIVOS
+              ========================================== */}
+          {activeTab === 'complementos' && (
+            <div className="space-y-6 animate-fadeIn">
+              
+              <div className="border-b border-warm-150 dark:border-warm-850 pb-4">
+                <span className="text-xs text-amber-800 dark:text-amber-500 uppercase tracking-widest font-bold">Add-ins Especiales (Complementos)</span>
+                <h2 className="text-3xl font-serif font-bold text-stone-850 dark:text-white mt-1">Conexión y Juegos de Pareja</h2>
+                <p className="text-xs text-stone-500 mt-1">Hagan su día a día más dulce con nuestros vouchers virtuales, retos espontáneos y preguntas profundas de conexión.</p>
+              </div>
+
+              {/* SECTION 1: CRONÓMETRO DE AMOR EN TIEMPO REAL */}
+              <div className="bg-gradient-to-r from-amber-500/10 to-rose-500/10 dark:from-amber-950/20 dark:to-rose-950/20 rounded-2xl p-6 border border-amber-200/50 dark:border-stone-800 text-center space-y-4 shadow-sm">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center animate-pulse text-xl">
+                    ❤️
+                  </span>
+                  <h3 className="text-lg font-serif font-bold text-stone-850 dark:text-stone-100">Nuestro Camino Juntos (Manu y Eve)</h3>
+                </div>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Tiempo total transcurrido desde nuestro aniversario real ({profile.anniversaryDate ? new Date(profile.anniversaryDate + 'T00:00:00').toLocaleDateString('es-SV', { year: 'numeric', month: 'long', day: 'numeric' }) : '21 de noviembre, 2021'}):</p>
+                
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 max-w-2xl mx-auto pt-2">
+                  <div className="bg-white/80 dark:bg-stone-900/60 p-3 rounded-xl border border-warm-200 dark:border-stone-800 shadow-xs">
+                    <div className="text-2xl font-mono font-bold text-amber-900 dark:text-amber-500">{anniversaryTimer.years}</div>
+                    <div className="text-[9px] uppercase font-semibold text-stone-500">Años</div>
+                  </div>
+                  <div className="bg-white/80 dark:bg-stone-900/60 p-3 rounded-xl border border-warm-200 dark:border-stone-800 shadow-xs">
+                    <div className="text-2xl font-mono font-bold text-amber-900 dark:text-amber-500">{anniversaryTimer.months}</div>
+                    <div className="text-[9px] uppercase font-semibold text-stone-500">Meses</div>
+                  </div>
+                  <div className="bg-white/80 dark:bg-stone-900/60 p-3 rounded-xl border border-warm-200 dark:border-stone-800 shadow-xs">
+                    <div className="text-2xl font-mono font-bold text-amber-900 dark:text-amber-500">{anniversaryTimer.days}</div>
+                    <div className="text-[9px] uppercase font-semibold text-stone-500">Días</div>
+                  </div>
+                  <div className="bg-white/80 dark:bg-stone-900/60 p-3 rounded-xl border border-warm-200 dark:border-stone-800 shadow-xs">
+                    <div className="text-2xl font-mono font-bold text-amber-900 dark:text-amber-500">{String(anniversaryTimer.hours).padStart(2, '0')}</div>
+                    <div className="text-[9px] uppercase font-semibold text-stone-500">Horas</div>
+                  </div>
+                  <div className="bg-white/80 dark:bg-stone-900/60 p-3 rounded-xl border border-warm-200 dark:border-stone-800 shadow-xs">
+                    <div className="text-2xl font-mono font-bold text-amber-900 dark:text-amber-500">{String(anniversaryTimer.minutes).padStart(2, '0')}</div>
+                    <div className="text-[9px] uppercase font-semibold text-stone-500">Mins</div>
+                  </div>
+                  <div className="bg-white/80 dark:bg-stone-900/60 p-3 rounded-xl border border-warm-200 dark:border-stone-800 shadow-xs animate-pulse">
+                    <div className="text-2xl font-mono font-bold text-rose-600 dark:text-rose-450">{String(anniversaryTimer.seconds).padStart(2, '0')}</div>
+                    <div className="text-[9px] uppercase font-semibold text-stone-500">Segs</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: TWO COLUMN INTERACTIVE GAMES */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* GAME A: TRIVIA DE CONEXIÓN */}
+                <div className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-2xl shadow-xs space-y-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-amber-850 dark:text-amber-550">
+                      <Sparkles className="h-5 w-5 text-amber-800 dark:text-amber-500" />
+                      <h3 className="font-serif font-bold text-lg text-stone-850 dark:text-stone-100">Caja de Preguntas Íntimas</h3>
+                    </div>
+                    <p className="text-xs text-stone-500">Elijan una categoría y tómense el tiempo de responder sinceramente para encender lindas pláticas en el sofá.</p>
+                    
+                    {/* Category selectors */}
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {(['profundas', 'graciosas', 'historia', 'futuro'] as const).map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            setTriviaCategory(cat);
+                            setTriviaIndex(0);
+                          }}
+                          className={`px-3 py-1 rounded-full text-[10px] font-bold capitalize transition-colors cursor-pointer ${
+                            triviaCategory === cat
+                              ? 'bg-amber-900 text-white shadow-xs'
+                              : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700'
+                          }`}
+                        >
+                          {cat === 'profundas' ? '🕯️ Profundas' : cat === 'graciosas' ? '😂 Graciosas' : cat === 'historia' ? '⏳ Nuestra Historia' : '🚀 Futuro'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Question Card display */}
+                  <div className="my-4 p-5 bg-gradient-to-br from-stone-50 to-warm-50 dark:from-stone-950 dark:to-stone-900 border border-warm-200 dark:border-stone-800 rounded-xl min-h-[140px] flex flex-col justify-center items-center text-center relative overflow-hidden group">
+                    <span className="absolute top-2 left-3 text-4xl text-stone-200 dark:text-stone-800 font-serif font-bold pointer-events-none group-hover:scale-110 transition-transform">“</span>
+                    <p className="text-sm font-serif font-medium leading-relaxed px-4 text-stone-850 dark:text-stone-200">
+                      {triviaQuestions[triviaCategory]?.[triviaIndex % triviaQuestions[triviaCategory].length] || 'Seleccionen una pregunta...'}
+                    </p>
+                    <span className="absolute bottom-2 right-3 text-4xl text-stone-200 dark:text-stone-800 font-serif font-bold pointer-events-none group-hover:scale-110 transition-transform">”</span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const list = triviaQuestions[triviaCategory] || [];
+                      setTriviaIndex(prev => (prev + 1) % list.length);
+                    }}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-800 to-amber-900 hover:from-amber-900 hover:to-amber-950 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer select-none"
+                  >
+                    Siguiente Pregunta 🃏
+                  </button>
+                </div>
+
+                {/* GAME B: RULETA DE RETOS/DETALLES */}
+                <div className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-2xl shadow-xs space-y-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-rose-700 dark:text-rose-500">
+                      <Flame className="h-5 w-5" />
+                      <h3 className="font-serif font-bold text-lg text-stone-850 dark:text-stone-100">Ruleta Cozy de Retos de Pareja</h3>
+                    </div>
+                    <p className="text-xs text-stone-500">¿Un estancamiento en la tarde? Giren la ruleta para obtener un pequeño reto aleatorio de cariño mutuo.</p>
+                  </div>
+
+                  <div className="my-4 p-5 bg-stone-50 dark:bg-stone-955 border border-warm-200 dark:border-stone-800 rounded-xl min-h-[140px] flex flex-col justify-center items-center text-center relative overflow-hidden">
+                    {isSpinning ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 rounded-full border-3 border-amber-900 border-t-transparent animate-spin" />
+                        <span className="text-[11px] font-mono tracking-widest text-stone-400 animate-pulse uppercase">Girando la ruleta de amor...</span>
+                      </div>
+                    ) : activeChallenge ? (
+                      <div className="space-y-2 max-w-sm">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-amber-800 dark:text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded">¡Reto Seleccionado!</span>
+                        <p className="text-sm font-medium text-stone-800 dark:text-stone-200 leading-relaxed font-serif">
+                          {activeChallenge}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-1.5 py-4">
+                        <span className="text-3xl animate-bounce">🎡</span>
+                        <p className="text-xs text-stone-400 max-w-xs font-serif italic">Listo para girar. ¿Qué tierno obstáculo amoroso les tocará cumplir hoy?</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    disabled={isSpinning}
+                    onClick={() => {
+                      setIsSpinning(true);
+                      let rounds = 12;
+                      let count = 0;
+                      const timer = setInterval(() => {
+                        const randomIdx = Math.floor(Math.random() * challengesPool.length);
+                        setActiveChallenge(challengesPool[randomIdx]);
+                        count++;
+                        if (count >= rounds) {
+                          clearInterval(timer);
+                          setIsSpinning(false);
+                        }
+                      }, 100);
+                    }}
+                    className={`w-full py-2.5 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer ${
+                      isSpinning 
+                        ? 'bg-stone-200 text-stone-400 cursor-not-allowed dark:bg-stone-800' 
+                        : 'bg-rose-800 hover:bg-rose-900 text-white'
+                    }`}
+                  >
+                    {isSpinning ? '🎡 Girando...' : 'Lanzar Reto Cozy 🎲'}
+                  </button>
+                </div>
+
+              </div>
+
+              {/* SECTION 3: VALES DE AMOR INTERACTIVOS */}
+              <div className="bg-white dark:bg-stone-900 border border-warm-200 dark:border-stone-800 p-6 rounded-2xl shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-stone-850 dark:text-stone-100 flex items-center gap-1.5">
+                      🎟️ Talonario de Vales de Amor Virtuales
+                    </h3>
+                    <p className="text-xs text-stone-500">Un voucher digital gratis que pueden canjear cuando lo deseen. ¡Es ley secreta de la pareja cumplirlo!</p>
+                  </div>
+                  <button
+                    onClick={handleResetCoupons}
+                    className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/55 rounded-lg cursor-pointer transition-colors active:scale-95"
+                  >
+                    Restablecer Vales ⚙️
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                  {coupons.map((coupon) => {
+                    const isRedeemed = coupon.status === 'canjeado';
+                    return (
+                      <div
+                        key={coupon.id}
+                        className={`p-4 rounded-xl border relative overflow-hidden transition-all duration-300 flex flex-col justify-between min-h-[140px] ${
+                          isRedeemed
+                            ? 'bg-stone-100 dark:bg-stone-900/30 border-stone-200 text-stone-400 dark:text-stone-500 dark:border-stone-850'
+                            : 'bg-stone-50/50 dark:bg-stone-950/20 border-warm-250 hover:border-amber-300 dark:border-stone-800 dark:hover:border-amber-900 shadow-xs hover:shadow-md'
+                        }`}
+                      >
+                        {/* Ticket perforated visual circle layout cutout */}
+                        <div className="absolute top-1/2 -translate-y-1/2 -left-2 w-4 h-4 rounded-full bg-warm-50 dark:bg-stone-950 border-r border-warm-250 dark:border-stone-850" />
+                        <div className="absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-4 rounded-full bg-warm-50 dark:bg-stone-955 border-l border-warm-250 dark:border-stone-850" />
+                        
+                        <div className="space-y-1.5 pl-2 pr-2">
+                          <h4 className={`text-xs font-bold leading-tight ${isRedeemed ? 'line-through text-stone-400 dark:text-stone-600' : 'text-stone-850 dark:text-stone-100'}`}>
+                            {coupon.title}
+                          </h4>
+                          <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug font-serif">
+                            {coupon.desc}
+                          </p>
+                        </div>
+
+                        <div className="border-t border-dashed border-warm-250 dark:border-stone-800/80 pt-2.5 mt-3 flex items-center justify-between pl-2 pr-2">
+                          <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-lg ${
+                            isRedeemed
+                              ? 'bg-stone-200/50 dark:bg-stone-800/40 text-stone-500'
+                              : 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-450'
+                          }`}>
+                            {isRedeemed ? '🎟️ Canjeado' : '🔥 Disponible'}
+                          </span>
+
+                          <button
+                            onClick={() => {
+                              handleRedeemCoupon(coupon.id);
+                              if (coupon.status === 'disponible') {
+                                alert(`¡Vale "${coupon.title}" canjeado con éxito! Que tu pareja lo cumpla hoy mismo con mucho amor. ✨`);
+                              }
+                            }}
+                            className={`px-3 py-1 text-[10px] rounded-lg font-bold transition-all cursor-pointer active:scale-95 shadow-xs ${
+                              isRedeemed
+                                ? 'bg-stone-200 hover:bg-stone-300 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-300'
+                                : 'bg-amber-900 hover:bg-stone-850 text-white'
+                            }`}
+                          >
+                            {isRedeemed ? 'Re-activar' : 'Canjear Vale'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
             </div>

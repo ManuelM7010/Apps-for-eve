@@ -1,5 +1,4 @@
 {
-  "lastUpdated": 1779979200000,
   "profile": {
     "partner1": "Manu",
     "partner2": "Eve",
@@ -80,6 +79,51 @@
       "time": "20:00",
       "mood": "Romántica",
       "location": "En Casa",
+      "completed": true
+    },
+    {
+      "id": "a-may-25",
+      "title": "Lunes de Cocinar Juntos: Lasaña express en pareja con vinito",
+      "date": "2026-05-25",
+      "time": "20:30",
+      "mood": "Romántica",
+      "location": "En Casa",
+      "completed": true
+    },
+    {
+      "id": "a-may-26",
+      "title": "Noche de Películas acurrucados con Té caliente de manzanilla",
+      "date": "2026-05-26",
+      "time": "21:00",
+      "mood": "Relajante",
+      "location": "En Casa",
+      "completed": true
+    },
+    {
+      "id": "a-may-27",
+      "title": "Paseo express al Atardecer en Planes de Renderos con atol de elote",
+      "date": "2026-05-27",
+      "time": "17:30",
+      "mood": "Aventura",
+      "location": "Planes de Renderos",
+      "completed": true
+    },
+    {
+      "id": "a-may-28",
+      "title": "Tarde de Jenga Dinámico con retos y preguntas profundas",
+      "date": "2026-05-28",
+      "time": "19:00",
+      "mood": "Divertida",
+      "location": "En Casa",
+      "completed": true
+    },
+    {
+      "id": "a-may-29",
+      "title": "Pupuseada de celebración express por terminar la semana",
+      "date": "2026-05-29",
+      "time": "19:40",
+      "mood": "Relajante",
+      "location": "Auto-Pupusódromo",
       "completed": true
     },
     {
@@ -214,5 +258,42 @@
   ],
   "officeMenu": [],
   "officialMenus": [],
-  "chalkboardNotes": []
+  "chalkboardNotes": [
+    {
+      "id": "n-may-25",
+      "text": "Manu: ¡Lunes completado! Preparé el pollito deshilachado con entomatada jugosa para la oficina de mañana. Te dejé una ración riquísima servida. Que descanses, mi amor. 👨🍲",
+      "writer": "Manu",
+      "color": "yellow",
+      "createdAt": 1779673200000
+    },
+    {
+      "id": "n-may-26",
+      "text": "Eve: Gracias churro por consentirme con el té de manzanilla de anoche, me sentía súper cansada y amanecí excelente. Hoy limpio yo la cocina completa sin falta. 👩🧼",
+      "writer": "Eve",
+      "color": "pink",
+      "createdAt": 1779759600000
+    },
+    {
+      "id": "n-may-27",
+      "text": "Manu: El atardecer de hoy caminándola de la mano en Los Planes de Renderos fue increíble. ¡Inolvidable la brisa heladita! El casamiento que cenamos sigue estando fantástico. 👨💨",
+      "writer": "Manu",
+      "color": "blue",
+      "createdAt": 1779846000000
+    },
+    {
+      "id": "n-may-28",
+      "text": "Eve: ¡Casi boto la torre tres veces pero le gané el Jenga a Manu el jueves! La pregunta íntima sobre la primera cita estuvo de lo más tierno. Te amo infinito. 👩🃏",
+      "writer": "Eve",
+      "color": "purple",
+      "createdAt": 1779932400000
+    },
+    {
+      "id": "n-may-29",
+      "text": "Eve: Termina una gran semana de EvÜ. Registramos todas las tareas y logramos mantener el orden perfecto en el nido de amor. ¡Lista para el picnic de este domingo! 🏡✨",
+      "writer": "Eve",
+      "color": "green",
+      "createdAt": 1780018800000
+    }
+  ],
+  "lastUpdated": 1780146221000
 }
