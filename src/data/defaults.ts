@@ -4,7 +4,7 @@ export const defaultProfile: CoupleProfile = {
   partner1: 'Manu',
   partner2: 'Eve',
   anniversaryDate: '2021-11-21', // Aniversario de novios real de Manu & Eve
-  points1: 350,
+  points1: 300,
   points2: 550,
   streakDays: 9, // Activos desde el viernes 22 de mayo 2026 (9 días de racha al 30 de mayo)
 };
@@ -19,7 +19,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Él',
     duration: '10 min',
     autoRepeat: true,
-    completed: true,
+    completed: false,
     scorePoints: 10,
   },
   {
@@ -31,7 +31,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Ambos',
     duration: '35 min',
     autoRepeat: true,
-    completed: true,
+    completed: false,
     scorePoints: 25,
   },
   {
@@ -43,7 +43,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Ella',
     duration: '20 min',
     autoRepeat: true,
-    completed: true,
+    completed: false,
     scorePoints: 15,
   },
   {
@@ -55,7 +55,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Ambos',
     duration: '15 min',
     autoRepeat: true,
-    completed: true,
+    completed: false,
     scorePoints: 20,
   },
   {
@@ -67,7 +67,7 @@ export const defaultTasks: CoupleTask[] = [
     responsable: 'Él',
     duration: '45 min',
     autoRepeat: true,
-    completed: true,
+    completed: false,
     scorePoints: 30,
   }
 ];

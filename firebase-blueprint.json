@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "NidoSyncState": {
+      "title": "NidoSyncState",
+      "description": "All synchronized data for the application including profile, tasks, appointments, savedIdeas, and chalkboardNotes.",
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "object",
+          "description": "Insignia profile for partners, anniversary date and accrued scores"
+        },
+        "tasks": {
+          "type": "array",
+          "description": "Daily or weekly recurring household chores"
+        },
+        "appointments": {
+          "type": "array",
+          "description": "Scheduled cozy dates"
+        },
+        "savedIdeas": {
+          "type": "array",
+          "description": "Gemini generated ideas saved for later"
+        },
+        "weeklyMenu": {
+          "type": "array",
+          "description": "Weekly meal plans"
+        },
+        "chalkboardNotes": {
+          "type": "array",
+          "description": "Cozy communication notes"
+        },
+        "lastUpdated": {
+          "type": "number",
+          "description": "Timestamp of last modification"
+        }
+      },
+      "required": ["profile", "tasks", "appointments", "lastUpdated"]
+    }
+  },
+  "firestore": {
+    "nido_sync/state": {
+      "schema": "NidoSyncState",
+      "description": "The master document containing the full application synchronized state."
+    }
+  }
+}

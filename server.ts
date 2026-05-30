@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 dotenv.config();
 
@@ -43,11 +45,30 @@ const app = express();
 app.use(express.json());
 
 // ==========================================
-// STATE SYNCHRONIZATION (Real-time DB replacement for Eve & Manu)
+// STATE SYNCHRONIZATION (Real-time DB with Cloud Firestore + Local Cache Fallback)
 // ==========================================
 const SYNC_FILE_PATH = path.join(process.cwd(), 'nido_sync_data.json');
 let inMemorySyncData: any = null;
 
+// Initialize Firebase App & Cloud Firestore Service
+const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+let firebaseDb: any = null;
+
+try {
+  if (fs.existsSync(firebaseConfigPath)) {
+    const configRaw = fs.readFileSync(firebaseConfigPath, 'utf8');
+    const config = JSON.parse(configRaw);
+    const firebaseApp = initializeApp(config);
+    firebaseDb = getFirestore(firebaseApp, config.firestoreDatabaseId);
+    console.log('[Nido - Firebase] Cloud Firestore inicializado de forma exitosa.');
+  } else {
+    console.warn('[Nido - Firebase] Configuración firebase-applet-config.json no encontrada.');
+  }
+} catch (error) {
+  console.error('[Nido - Firebase] Error crítico al inicializar Firebase SDK:', error);
+}
+
+// Loads the cached synchronization state from local file system (fallback or recovery support)
 function loadSyncData() {
   if (inMemorySyncData) {
     return inMemorySyncData;
@@ -66,6 +87,7 @@ function loadSyncData() {
   return null;
 }
 
+// Saves synchronization state to local file system
 function saveSyncData(data: any) {
   inMemorySyncData = data;
   try {
@@ -79,26 +101,90 @@ function saveSyncData(data: any) {
   }
 }
 
-// Endpoint to fetch fully synchronized state
-app.get('/api/sync', (req, res) => {
+// Loads synchronization state from Cloud Firestore
+async function loadSyncDataFromFirestore() {
+  if (!firebaseDb) {
+    return null;
+  }
   try {
-    const data = loadSyncData();
+    const docRef = doc(firebaseDb, 'nido_sync', 'state');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (err) {
+    console.error('[Nido - Firebase] Falló la lectura desde Cloud Firestore:', err);
+  }
+  return null;
+}
+
+// Saves synchronization state into Cloud Firestore
+async function saveSyncDataToFirestore(data: any) {
+  if (!firebaseDb) {
+    return false;
+  }
+  try {
+    const docRef = doc(firebaseDb, 'nido_sync', 'state');
+    await setDoc(docRef, data);
+    return true;
+  } catch (err) {
+    console.error('[Nido - Firebase] Falló la escritura en Cloud Firestore:', err);
+    return false;
+  }
+}
+
+// Endpoint to fetch fully synchronized state (Priority: Remote Cloud Database -> Local Cache Fallback)
+app.get('/api/sync', async (req, res) => {
+  try {
+    // 1. Prioridad 1: Cargar desde la nube para evitar pérdidas de reinicio del hosting en Render
+    let data = await loadSyncDataFromFirestore();
+    
+    if (data) {
+      // Éxito: Sincronizar nuestro caché en memoria y archivo físico local para el próximo reinicio o fuera de línea
+      inMemorySyncData = data;
+      try {
+        fs.writeFileSync(SYNC_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+      } catch (writeErr) {
+        console.error('Error actualizando copia caché local:', writeErr);
+      }
+    } else {
+      // Prioridad 2: Fallback al archivo local (o memoria si no existe/está vacío)
+      console.log('[Nido - Sync] Datos de la nube no disponibles o vacíos. Cargando caché local de respaldo...');
+      data = loadSyncData();
+      
+      // Auto-hidratación: Si cargamos datos locales válidos pero la nube estaba vacía, la poblamos de inmediato.
+      if (data && firebaseDb) {
+        console.log('[Nido - Sync] Auto-hidratando Cloud Firestore con la copia de seguridad local...');
+        saveSyncDataToFirestore(data).catch(err => console.error('Error en hidratación de fondo de Firestore:', err));
+      }
+    }
+    
     res.json({ success: true, data });
   } catch (error: any) {
+    console.error('Error en GET /api/sync:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Endpoint to save state changes
-app.post('/api/sync', (req, res) => {
+// Endpoint to save state changes (Double-Persistence and instant cloud sync)
+app.post('/api/sync', async (req, res) => {
   try {
     const { data } = req.body;
     if (!data) {
       return res.status(400).json({ error: 'Falta el campo "data" para sincronizar.' });
     }
+    
+    // 1. Guardado local inmediato para resiliencia asíncrona
     saveSyncData(data);
+    
+    // 2. Guardado en la nube persistente
+    if (firebaseDb) {
+      await saveSyncDataToFirestore(data);
+    }
+    
     res.json({ success: true });
   } catch (error: any) {
+    console.error('Error en POST /api/sync:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -101,8 +101,8 @@ export default function App() {
         }
         
         // Auto-lift points to the correct historical milestones as requested by the user
-        if (!parsed.points1 || parsed.points1 < 350) {
-          parsed.points1 = 350;
+        if (!parsed.points1 || parsed.points1 < 300) {
+          parsed.points1 = 300;
           dirty = true;
         }
         if (!parsed.points2 || parsed.points2 < 550) {
@@ -115,10 +115,10 @@ export default function App() {
         }
         return parsed;
       } catch (e) {
-        return { ...defaultProfile, points1: 350, points2: 550 };
+        return { ...defaultProfile, points1: 300, points2: 550 };
       }
     }
-    return { ...defaultProfile, points1: 350, points2: 550 };
+    return { ...defaultProfile, points1: 300, points2: 550 };
   });
 
   const [tasks, setTasks] = useState<CoupleTask[]>(() => {
@@ -235,12 +235,18 @@ export default function App() {
   // Historic Records and Game scores
   const [records, setRecords] = useState(() => {
     const saved = localStorage.getItem('nido_records');
-    const defaultRecords = [
-      { id: 'rec-1', period: 'Mayo 2026 (Mensual)', winner: 'Eve', score1: 350, score2: 550, prize: 'Desayuno estrella a la cama preparado por Manu 🍳☕' },
-      { id: 'rec-2', period: 'Semana de Mayo (25 - 29 Mayo)', winner: 'Eve', score1: 120, score2: 180, prize: 'Vale de mimos y masajes en los pies 🎟️👣' },
-      { id: 'rec-3', period: 'Semana Anterior (18 - 22 Mayo)', winner: 'Manu', score1: 160, score2: 110, prize: 'Tarde de videojuegos salvadoreña sin trastes sucios 🎮🇸🇻' }
-    ];
-    return saved ? JSON.parse(saved) : defaultRecords;
+    const defaultRecords: any[] = [];
+    if (!saved) return defaultRecords;
+    try {
+      const parsed = JSON.parse(saved);
+      return parsed.filter((r: any) => 
+        !r.period.includes('18 - 22 Mayo') && 
+        !r.period.includes('25 - 29 Mayo') && 
+        !r.period.includes('Mayo 2026 (Mensual)')
+      );
+    } catch (e) {
+      return defaultRecords;
+    }
   });
 
   useEffect(() => {
@@ -275,26 +281,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('nido_agreements', JSON.stringify(nestAgreements));
   }, [nestAgreements]);
-
-  // ADD-IN STATE C: Capsulita de Tiempo / Recuerdos en Polaroid
-  const [memories, setMemories] = useState(() => {
-    const saved = localStorage.getItem('nido_memories');
-    const defaultMemories = [
-      { id: 'mem-1', text: 'Nuestra primera cena romántica italiana en el comedor con luces tenues y vino.', date: '2026-05-24', sticker: '🍷', mood: 'Enamorados' },
-      { id: 'mem-2', text: 'Tarde fría comiendo ricas pupusas de arroz en los Planes de Renderos.', date: '2026-05-28', sticker: '🫓', mood: 'Felices' },
-      { id: 'mem-3', text: 'Sincronizamos con éxito nuestro tablero oficial y recordamos que somos el mejor equipo.', date: '2026-05-30', sticker: '🏡', mood: 'Afortunados' }
-    ];
-    return saved ? JSON.parse(saved) : defaultMemories;
-  });
-
-  const [newMemoryText, setNewMemoryText] = useState('');
-  const [newMemoryDate, setNewMemoryDate] = useState('2026-05-30');
-  const [newMemorySticker, setNewMemorySticker] = useState('💖');
-  const [newMemoryMood, setNewMemoryMood] = useState('Felices');
-
-  useEffect(() => {
-    localStorage.setItem('nido_memories', JSON.stringify(memories));
-  }, [memories]);
 
   // Weekly Planner - Week selection offset state (e.g. 0 for current week, 1 for next week, etc.)
   const [selectedWeekOffset, setSelectedWeekOffset] = useState<number>(0);
@@ -1332,8 +1318,8 @@ export default function App() {
 
   // Synchronizes and recalculates points dynamically based on currently completed tasks
   const handleRecalculatePoints = (silent?: boolean) => {
-    let p1TasksSum = 0;
-    let p2TasksSum = 0;
+    let p1TasksSum = 300;
+    let p2TasksSum = 550;
     
     tasks.forEach(t => {
       if (t.completed) {
@@ -1526,8 +1512,8 @@ export default function App() {
           
           // Guarantee they have at least the critical historical scores
           const updatedProfile = { ...data.profile };
-          if (!updatedProfile.points1 || updatedProfile.points1 < 350) {
-            updatedProfile.points1 = 350;
+          if (!updatedProfile.points1 || updatedProfile.points1 < 300) {
+            updatedProfile.points1 = 300;
           }
           if (!updatedProfile.points2 || updatedProfile.points2 < 550) {
             updatedProfile.points2 = 550;
@@ -1565,26 +1551,26 @@ export default function App() {
         setProfile(p => {
           const updated = {
             ...p,
-            points1: 350, // Manu
+            points1: 300, // Manu
             points2: 550, // Eve
           };
           localStorage.setItem('nido_profile', JSON.stringify(updated));
           return updated;
         });
-        alert("Sincronización en curso: No se encontró un archivo de respaldo previo en Render (o estaba vacío). Como plan alternativo de contingencia, ¡hemos asignado exitosamente y de inmediato tus puntos correctos: Manuel (Manu): 350 pts, Evelyn (Eve): 550 pts en tu perfil local actual! 🏡💪💖");
+        alert("Sincronización en curso: No se encontró un archivo de respaldo previo en Render (o estaba vacío). Como plan alternativo de contingencia, ¡hemos asignado exitosamente y de inmediato tus puntos correctos: Manuel (Manu): 300 pts, Evelyn (Eve): 550 pts en tu perfil local actual! 🏡💪💖");
       }
     } catch (err) {
       console.error("Error restoring from server:", err);
       setProfile(p => {
         const updated = {
           ...p,
-          points1: 350, // Manu
+          points1: 300, // Manu
           points2: 550, // Eve
         };
         localStorage.setItem('nido_profile', JSON.stringify(updated));
         return updated;
       });
-      alert("No se pudo conectar al servidor de Render. Sin embargo, hemos asignado exitosamente tu puntaje de pareja según lo acordado: Eve: 550 pts y Manu: 350 pts en este navegador. ¡A por más records! 🌸🏡");
+      alert("No se pudo conectar al servidor de Render. Sin embargo, hemos asignado exitosamente tu puntaje de pareja según lo acordado: Eve: 550 pts y Manu: 300 pts en este navegador. ¡A por más records! 🌸🏡");
     } finally {
       setIsSyncing(false);
     }
@@ -2454,64 +2440,126 @@ export default function App() {
                 <div className="lg:col-span-4 bg-stone-900 text-stone-50 rounded-2xl p-6 border border-stone-850 shadow-md flex flex-col justify-between select-none">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Hogar Gamificado</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Hogar Gamificado</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRecalculatePoints(false)}
+                          className="p-1 hover:bg-white/10 rounded text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1 text-[9px] uppercase tracking-wider font-mono cursor-pointer select-none"
+                          title="Recalcular puntos de tareas activas"
+                        >
+                          <RefreshCw className="h-3 w-3 animate-spin-slow" />
+                          Sincronizar
+                        </button>
+                      </div>
                       <Award className="h-5 w-5 text-amber-400 animate-bounce" />
                     </div>
 
-                    {/* SCORE PERIOD SELECTOR TABS */}
-                    <div className="bg-stone-950 p-1 rounded-xl grid grid-cols-3 gap-1 text-[10px] font-bold border border-stone-850">
-                      {(['semanal', 'mensual', 'total'] as const).map((p) => (
-                        <button
-                          key={p}
-                          onClick={() => setScorePeriod(p)}
-                          className={`py-1.5 rounded-lg transition-all capitalize cursor-pointer text-center ${
-                            scorePeriod === p
-                              ? 'bg-amber-900 text-stone-100 shadow-xs'
-                              : 'text-stone-400 hover:text-stone-200'
-                          }`}
-                        >
-                          {p === 'semanal' ? '📅 Semanal' : p === 'mensual' ? '🗓️ Mensual' : '🏆 Total'}
-                        </button>
-                      ))}
-                    </div>
+                    {/* DYNAMIC SCORE CALCULATIONS WITH MAYO 300/550 BASELINE */}
+                    {(() => {
+                      let displayPoints1 = profile.points1;
+                      let displayPoints2 = profile.points2;
 
-                    <div className="text-center space-y-1 py-2 bg-stone-950/40 rounded-xl border border-stone-850/40">
-                      <p className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
-                        {scorePeriod === 'semanal' ? 'Puntuación de esta Semana' : scorePeriod === 'mensual' ? 'Acumulado del Mes (Mayo)' : 'Marcador Histórico Acumulado'}
-                      </p>
-                      
-                      <div className="flex justify-around items-center py-2 px-1">
-                        <div className="text-center">
-                          <div className="w-10 h-10 rounded-full bg-amber-700/20 border border-amber-500/50 flex items-center justify-center font-bold text-base mx-auto text-amber-300">
-                            {profile.partner1[0]}
-                          </div>
-                          <span className="text-[10px] opacity-70 block mt-1">{profile.partner1}</span>
-                          <span className="font-mono text-lg font-bold text-amber-400">
-                            {scorePeriod === 'semanal' ? '90' : scorePeriod === 'mensual' ? '350' : profile.points1} pts
-                          </span>
-                        </div>
-                        
-                        <div className="text-stone-600 font-serif text-sm">vs</div>
+                      let otherWeeksPoints1 = 0;
+                      let otherWeeksPoints2 = 0;
 
-                        <div className="text-center">
-                          <div className="w-10 h-10 rounded-full bg-stone-700/30 border border-stone-500/60 flex items-center justify-center font-bold text-base mx-auto text-amber-300">
-                            {profile.partner2[0]}
+                      tasks.forEach(t => {
+                        if (t.completed && (t.weekOffset || 0) > 0) {
+                          const pts = t.scorePoints || 10;
+                          const spouse = t.responsable === 'Él' ? 'p1' : t.responsable === 'Ella' ? 'p2' : 'other';
+                          if (spouse === 'p1' || spouse === 'other') otherWeeksPoints1 += pts;
+                          if (spouse === 'p2' || spouse === 'other') otherWeeksPoints2 += pts;
+                        }
+                      });
+
+                      const totalPoints1 = profile.points1;
+                      const totalPoints2 = profile.points2;
+
+                      // Mayo 2026 Monthly points = Total points minus any completed tasks in future weeks offset
+                      const mensualPoints1 = totalPoints1 - otherWeeksPoints1;
+                      const mensualPoints2 = totalPoints2 - otherWeeksPoints2;
+
+                      // Weekly points depending on current selected week offset
+                      let semanalPoints1 = 0;
+                      let semanalPoints2 = 0;
+
+                      if (selectedWeekOffset === 0) {
+                        semanalPoints1 = totalPoints1 - otherWeeksPoints1;
+                        semanalPoints2 = totalPoints2 - otherWeeksPoints2;
+                      } else {
+                        // Future week scores start at 0 plus tasks completed with that specific offset
+                        tasks.forEach(t => {
+                          if (t.completed && (t.weekOffset || 0) === selectedWeekOffset) {
+                            const pts = t.scorePoints || 10;
+                            const spouse = t.responsable === 'Él' ? 'p1' : t.responsable === 'Ella' ? 'p2' : 'other';
+                            if (spouse === 'p1' || spouse === 'other') semanalPoints1 += pts;
+                            if (spouse === 'p2' || spouse === 'other') semanalPoints2 += pts;
+                          }
+                        });
+                      }
+
+                      displayPoints1 = scorePeriod === 'semanal' ? semanalPoints1 : scorePeriod === 'mensual' ? mensualPoints1 : totalPoints1;
+                      displayPoints2 = scorePeriod === 'semanal' ? semanalPoints2 : scorePeriod === 'mensual' ? mensualPoints2 : totalPoints2;
+
+                      return (
+                        <>
+                          {/* SCORE PERIOD SELECTOR TABS */}
+                          <div className="bg-stone-950 p-1 rounded-xl grid grid-cols-3 gap-1 text-[10px] font-bold border border-stone-850">
+                            {(['semanal', 'mensual', 'total'] as const).map((p) => (
+                              <button
+                                key={p}
+                                onClick={() => setScorePeriod(p)}
+                                className={`py-1.5 rounded-lg transition-all capitalize cursor-pointer text-center ${
+                                  scorePeriod === p
+                                    ? 'bg-amber-900 text-stone-100 shadow-xs'
+                                    : 'text-stone-400 hover:text-stone-200'
+                                }`}
+                              >
+                                {p === 'semanal' ? '📅 Semanal' : p === 'mensual' ? '🗓️ Mensual' : '🏆 Total'}
+                              </button>
+                            ))}
                           </div>
-                          <span className="text-[10px] opacity-70 block mt-1">{profile.partner2}</span>
-                          <span className="font-mono text-lg font-bold text-amber-400">
-                            {scorePeriod === 'semanal' ? '140' : scorePeriod === 'mensual' ? '550' : profile.points2} pts
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="text-[9px] opacity-60 px-2 pb-1 font-serif italic text-center">
-                        {scorePeriod === 'semanal' 
-                          ? 'Cierra este domingo. ¡El ganador puede canjear un vale!' 
-                          : scorePeriod === 'mensual' 
-                            ? 'Puntos acumulados en Mayo 2026. ¡Eve lidera el tablero!' 
-                            : 'Todos sus puntos históricos sumados en la app.'}
-                      </div>
-                    </div>
+
+                          <div className="text-center space-y-1 py-2 bg-stone-950/40 rounded-xl border border-stone-850/40">
+                            <p className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
+                              {scorePeriod === 'semanal' ? 'Puntuación de esta Semana' : scorePeriod === 'mensual' ? 'Acumulado del Mes (Mayo)' : 'Marcador Histórico Acumulado'}
+                            </p>
+                            
+                            <div className="flex justify-around items-center py-2 px-1">
+                              <div className="text-center">
+                                <div className="w-10 h-10 rounded-full bg-amber-700/20 border border-amber-500/50 flex items-center justify-center font-bold text-base mx-auto text-amber-300">
+                                  {profile.partner1[0]}
+                                </div>
+                                <span className="text-[10px] opacity-70 block mt-1">{profile.partner1}</span>
+                                <span className="font-mono text-lg font-bold text-amber-400">
+                                  {displayPoints1} pts
+                                </span>
+                              </div>
+                              
+                              <div className="text-stone-600 font-serif text-sm">vs</div>
+
+                              <div className="text-center">
+                                <div className="w-10 h-10 rounded-full bg-stone-700/30 border border-stone-500/60 flex items-center justify-center font-bold text-base mx-auto text-amber-300">
+                                  {profile.partner2[0]}
+                                </div>
+                                <span className="text-[10px] opacity-70 block mt-1">{profile.partner2}</span>
+                                <span className="font-mono text-lg font-bold text-amber-400">
+                                  {displayPoints2} pts
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="text-[9px] opacity-60 px-2 pb-1 font-serif italic text-center">
+                              {scorePeriod === 'semanal' 
+                                ? 'Periodo actual: 25 - 31 Mayo. ¡Cierra este domingo!' 
+                                : scorePeriod === 'mensual' 
+                                  ? 'Acumulado Mayo 2026. ¡Sincronizado con su progreso real!' 
+                                  : 'Todos sus puntos históricos acumulados en la app.'}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
 
                     {/* RECORDS HISTORY EXPANDER BUTTON */}
                     <div className="pt-2 border-t border-stone-800">
@@ -2526,38 +2574,49 @@ export default function App() {
                       {showScoreRecords && (
                         <div className="mt-2 space-y-2.5 bg-stone-950 p-3 rounded-xl border border-stone-850 text-stone-200 max-h-[180px] overflow-y-auto scrollbar-thin animate-slideDown">
                           <p className="text-[9px] uppercase tracking-widest text-stone-500 font-mono">Records Guardados de Pareja</p>
-                          {records.map((rec: any) => (
-                            <div key={rec.id} className="border-b border-stone-900 pb-2 last:border-b-0 last:pb-0 space-y-1 text-[10px]">
-                              <div className="flex justify-between font-bold text-stone-100">
-                                <span>{rec.period}</span>
-                                <span className="text-amber-400">🥇 Ganador: {rec.winner}</span>
+                          {records.length === 0 ? (
+                            <p className="text-[10px] text-stone-500 italic text-center py-4">No hay récords guardados aún. Archiven la semana cuando termine. 🏡✨</p>
+                          ) : (
+                            records.map((rec: any) => (
+                              <div key={rec.id} className="border-b border-stone-900 pb-2 last:border-b-0 last:pb-0 space-y-1 text-[10px]">
+                                <div className="flex justify-between font-bold text-stone-100">
+                                  <span>{rec.period}</span>
+                                  <span className="text-amber-400">🥇 Ganador: {rec.winner}</span>
+                                </div>
+                                <div className="flex justify-between text-stone-400 text-[9px] font-mono">
+                                  <span>{profile.partner1}: {rec.score1} pts</span>
+                                  <span>{profile.partner2}: {rec.score2} pts</span>
+                                </div>
+                                <p className="text-[9px] text-amber-200/90 italic font-serif leading-none mt-0.5">
+                                  🎁 Premio: {rec.prize}
+                                </p>
                               </div>
-                              <div className="flex justify-between text-stone-400 text-[9px] font-mono">
-                                <span>{profile.partner1}: {rec.score1} pts</span>
-                                <span>{profile.partner2}: {rec.score2} pts</span>
-                              </div>
-                              <p className="text-[9px] text-amber-200/90 italic font-serif leading-none mt-0.5">
-                                🎁 Premio: {rec.prize}
-                              </p>
-                            </div>
-                          ))}
+                            ))
+                          )}
                           
                           {/* QUICK ARCHIVE ACTION FOR PAREJAS */}
                           <button
                             onClick={() => {
                               const prize = prompt("¿Cuál es el Premio/Capricho para el ganador de este periodo?", "Un helado en San Salvador o cupón de mimos 🍧");
                               if (prize) {
-                                const winner = 140 > 90 ? profile.partner2 : profile.partner1;
+                                const score1 = profile.points1;
+                                const score2 = profile.points2;
+                                const winner = score2 > score1 ? profile.partner2 : profile.partner1;
+                                const periodLabel = scorePeriod === 'semanal' 
+                                  ? 'Semana actual (25 - 31 Mayo)' 
+                                  : scorePeriod === 'mensual' 
+                                    ? 'Mes de Mayo 2026' 
+                                    : 'Periodo Total';
                                 const newRec = {
                                   id: `rec-${Date.now()}`,
-                                  period: `Semana de Mayo (Personalizado)`,
+                                  period: periodLabel,
                                   winner,
-                                  score1: 90,
-                                  score2: 140,
+                                  score1,
+                                  score2,
                                   prize
                                 };
-                                setRecords(prev => [newRec, ...prev]);
-                                alert("🏆 ¡Periodo y marcadores archivados como Récord con éxito!");
+                                setRecords((prev: any) => [newRec, ...prev]);
+                                alert("🏆 ¡Periodo y marcadores reales archivados como Récord con éxito!");
                               }
                             }}
                             className="w-full mt-2 py-1.5 bg-amber-900/60 hover:bg-amber-900 border border-amber-800 text-white rounded-lg text-[9px] font-bold text-center cursor-pointer transition-colors"
@@ -2708,7 +2767,7 @@ export default function App() {
                     </h3>
                   </div>
                   <p className="text-[11px] text-stone-500 dark:text-stone-300 leading-relaxed">
-                    Dado que el hosting de Render se reinicia y borra archivos locales periódicamente, les sugerimos guardar una copia local en su celular o PC. ¿Han perdido puntajes o tareas? Hagan clic en <strong className="text-amber-900 dark:text-amber-400">Recuperar Datos de Render</strong> para restablecer los puntajes históricos guardados (Manu: 85 Pts / Eve: 60 Pts).
+                    Dado que el hosting de Render se reinicia y borra archivos locales periódicamente, les sugerimos guardar una copia local en su celular o PC. ¿Han perdido puntajes o tareas? Hagan clic en <strong className="text-amber-900 dark:text-amber-400">Recuperar Datos de Render</strong> para restablecer los puntajes históricos guardados (Manu: 300 Pts / Eve: 550 Pts).
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0 items-center">
@@ -2758,7 +2817,7 @@ export default function App() {
                   <button
                     onClick={handleRestoreOriginalRenderData}
                     className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-850 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs shrink-0 cursor-pointer active:scale-98 flex items-center gap-1 animate-pulse"
-                    title="Rescata tu racha, notas y puntajes (85 pts / 60 pts) desde la base de datos de Render"
+                    title="Rescata tu racha, notas y puntajes (300 pts / 550 pts) desde la base de datos de Render"
                   >
                     ✨ Recuperar Datos de Render
                   </button>
@@ -5167,130 +5226,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* COMPLEMENTO 3: POLAROID TIME CAPSULE MEMORIES (Full Width) */}
-                <div className="bg-stone-50/60 dark:bg-stone-900/60 border border-warm-200 dark:border-stone-800 p-6 rounded-3xl shadow-xs space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">📸</span>
-                      <div>
-                        <h4 className="font-serif font-bold text-base text-stone-850 dark:text-stone-100 flex items-center gap-1.5">
-                          Mural de Recuerdos de Manu y Eve
-                        </h4>
-                        <p className="text-xs text-stone-500">Capturen momentos felices en pequeñas plaquitas Polaroid virtuales.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* MEMORIES GRID */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2">
-                    {memories.map((mem: any, idx: number) => {
-                      // Alternate rotation styles for cute polaroid feel
-                      const rotations = ['rotate-1', '-rotate-1', 'rotate-2', '-rotate-2'];
-                      const rot = rotations[idx % rotations.length];
-                      return (
-                        <div
-                          key={mem.id}
-                          className={`bg-white dark:bg-stone-950 p-3 pb-5 rounded shadow-sm border border-stone-200 dark:border-stone-850 flex flex-col justify-between relative transform ${rot} hover:rotate-0 hover:scale-[1.03] duration-300`}
-                        >
-                          {/* Simulated tape cutout */}
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-amber-500/15 border border-amber-500/10 pointer-events-none transform -rotate-2" />
-                          
-                          {/* Top memory Header sticker */}
-                          <div className="w-full aspect-square bg-warm-50 dark:bg-stone-900/70 border-b border-stone-100 dark:border-stone-900 rounded-sm flex items-center justify-center text-4xl mb-3 relative overflow-hidden group">
-                            <span>{mem.sticker}</span>
-                            <span className="absolute bottom-1 right-2 text-[9px] font-mono tracking-wider bg-black/60 text-white rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {mem.mood}
-                            </span>
-                          </div>
-
-                          <div className="space-y-1 px-1">
-                            <span className="text-[9px] font-mono font-bold text-stone-400 block tracking-wide">
-                              {new Date(mem.date + 'T00:00:00').toLocaleDateString('es-SV', { month: 'long', day: 'numeric', year: 'numeric' })}
-                            </span>
-                            <p className="text-xs font-serif leading-relaxed text-stone-800 dark:text-stone-200">
-                              {mem.text}
-                            </p>
-                          </div>
-
-                          <div className="flex justify-end pt-3 pr-1">
-                            <button
-                              onClick={() => {
-                                setMemories(p => p.filter(m => m.id !== mem.id));
-                              }}
-                              className="text-stone-300 hover:text-red-500 text-[10px] uppercase font-bold tracking-wider transition-colors cursor-pointer"
-                            >
-                              Eliminar 🗑️
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* ADD NEW MEMORY FORM */}
-                  <div className="bg-white dark:bg-stone-955 p-4 rounded-2xl border border-stone-200 dark:border-stone-850/80 mt-2 space-y-3">
-                    <p className="text-xs font-serif font-bold text-stone-800 dark:text-stone-100 flex items-center gap-1">
-                      📸 Guardar un nuevo Recuerdo en el Mural
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                      <div className="md:col-span-5">
-                        <input
-                          type="text"
-                          value={newMemoryText}
-                          onChange={(e) => setNewMemoryText(e.target.value)}
-                          placeholder="¿Qué momento lindo compartieron hoy?..."
-                          className="w-full px-3 py-1.5 border border-warm-250 dark:border-stone-800 rounded-xl bg-warm-50/50 dark:bg-stone-955 text-xs focus:ring-1 focus:ring-amber-550"
-                        />
-                      </div>
-                      <div className="md:col-span-3">
-                        <input
-                          type="date"
-                          value={newMemoryDate}
-                          onChange={(e) => setNewMemoryDate(e.target.value)}
-                          className="w-full px-3 py-1.5 border border-warm-250 dark:border-stone-800 rounded-xl bg-warm-50/50 dark:bg-stone-955 text-xs focus:ring-1 focus:ring-amber-550"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <select
-                          value={newMemorySticker}
-                          onChange={(e) => setNewMemorySticker(e.target.value)}
-                          className="w-full px-3 py-1.5 border border-warm-250 dark:border-stone-800 rounded-xl bg-warm-50/50 dark:bg-stone-955 text-xs focus:ring-1 focus:ring-amber-550 text-center"
-                        >
-                          <option value="💖">💖 Amor</option>
-                          <option value="🍿">🍿 Pelis</option>
-                          <option value="🍕">🍕 Comidita</option>
-                          <option value="✈️">✈️ Viajecito</option>
-                          <option value="🚗">🚗 Paseo</option>
-                          <option value="🍨">🍨 Postre</option>
-                          <option value="🫓">🫓 Pupusas</option>
-                          <option value="🍷">🍷 Copas</option>
-                          <option value="🎮">🎮 Juego</option>
-                          <option value="🏔️">🏔️ Planes</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <button
-                          onClick={() => {
-                            if (!newMemoryText.trim()) return;
-                            const newMem = {
-                              id: `mem-${Date.now()}`,
-                              text: newMemoryText,
-                              date: newMemoryDate,
-                              sticker: newMemorySticker,
-                              mood: 'Enamorados'
-                            };
-                            setMemories(prev => [newMem, ...prev]);
-                            setNewMemoryText('');
-                            alert("📸 ¡Recuerdo guardado con éxito y colocado en su mural virtual!");
-                          }}
-                          className="w-full py-1.5 bg-amber-900 hover:bg-stone-850 text-white rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95"
-                        >
-                          Colgar Fotos 📌
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
 
             </div>

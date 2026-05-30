@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Zero-Trust Master Gate: Deny all direct client-side reads and writes.
+    // All synchronized operations are safely proxied and verified through our Express API backend.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
